@@ -1,0 +1,16 @@
+# use glob syntax.
+syntax: glob
+
+*.class
+*.jar
+*.iml
+*.DS_Store
+MANIFEST.MF
+*~
+rubbish
+
+# switch to regexp syntax.
+syntax: regexp
+^\.idea/
+^idea$
+^build
