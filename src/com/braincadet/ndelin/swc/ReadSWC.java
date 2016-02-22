@@ -152,13 +152,13 @@ public class ReadSWC {
 
             if (nnodes.get(currId)==null) { // add the node
                 nnodes.set(currId, new Node(currX, currY, currZ, currR, currType));
-//                nnodes.get(i).nbrNode.add(prevId);
+//                nnodes.get(i).nbr.add(prevId);
             }
             else {
                 System.out.println("DOUBLING NODE ID HAPPENED!");
                 // something is there, this means that we're doubling the same node (illegal but can happen)
                 // by convention we'll assume that the doubled node is the same x,y,z,r - so we won't read the new coordinates again but the neighbours only
-//                nnodes.get(i).nbrNode.add(prevId);
+//                nnodes.get(i).nbr.add(prevId);
             }
 
         }
@@ -170,8 +170,8 @@ public class ReadSWC {
             int     prevId      = Math.round(nodes_load.get(i)[MOTHER]);
 
             if (prevId!=-1) {
-                nnodes.get(currId).nbrNode.add(prevId);
-                nnodes.get(prevId).nbrNode.add(currId);
+                nnodes.get(currId).nbr.add(prevId);
+                nnodes.get(prevId).nbr.add(currId);
             }
 
         }
@@ -188,9 +188,9 @@ public class ReadSWC {
         for (int i = 0; i < _nnodes.size(); i++) {
             if (_nnodes.get(i)!=null) {
                 Set<Integer> set = new HashSet<Integer>();
-                set.addAll(_nnodes.get(i).nbrNode);
-                _nnodes.get(i).nbrNode.clear();
-                _nnodes.get(i).nbrNode.addAll(set);
+                set.addAll(_nnodes.get(i).nbr);
+                _nnodes.get(i).nbr.clear();
+                _nnodes.get(i).nbr.addAll(set);
             }
         }
         System.out.println("done.");
@@ -199,10 +199,10 @@ public class ReadSWC {
         System.out.print("\nchecking neighbourhood consistency... ");
         for (int i = 0; i < _nnodes.size(); i++) {
             if (_nnodes.get(i)!=null) {
-                for (int j = 0; j < _nnodes.get(i).nbrNode.size(); j++) {
-                    int nbr_idx = _nnodes.get(i).nbrNode.get(j);
+                for (int j = 0; j < _nnodes.get(i).nbr.size(); j++) {
+                    int nbr_idx = _nnodes.get(i).nbr.get(j);
                     if (nbr_idx>0) {
-                        if (Collections.frequency(_nnodes.get(nbr_idx).nbrNode, i)!=1)
+                        if (Collections.frequency(_nnodes.get(nbr_idx).nbr, i)!=1)
                             System.out.println("ERROR: " + i + " -- " + nbr_idx);
                     }
                     else {

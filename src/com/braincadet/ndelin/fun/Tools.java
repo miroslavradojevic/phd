@@ -22,14 +22,14 @@ public class Tools {
             for (File file : files)
                 if (!file.delete()) System.out.println("Failed to delete " + file);
         }
-        IJ.log(dirpath);
+//        IJ.log(dirpath);
     }
 
     public static void createDir(String dirpath) {
         // create directory without cleaning it up
         File f1 = new File(dirpath);
         if (!f1.exists()) {f1.mkdirs();}
-        IJ.log("createDir " + dirpath);
+//        IJ.log("createDir " + dirpath);
     }
 
     public static void cleanfile(String filepath) {

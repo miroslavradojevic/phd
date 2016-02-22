@@ -13,6 +13,7 @@ import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.process.FloatProcessor;
+
 import java.io.*;
 import java.util.Arrays;
 import java.util.Random;
@@ -191,7 +192,7 @@ public class SingleTT {
         swcroot = swci;
         logWriter.println((++swci) + " " + 1 + " " + IJ.d2s(10 + sc * vx, 3) + " " + IJ.d2s(0 + sc * vy, 3) + " " + IJ.d2s(0 + sc * vz, 3) + " " + 0.1 + " " + swcroot);
 
-        // init iteration
+        // _init iteration
         for (int i = 0; i < np; i++) { // random initial locations, start with (10,0,0) for visualization
             pxyz[0][i][0] = (float) (10+rndgen.nextGaussian()*locstddev);
             pxyz[0][i][1] = (float) (0 +rndgen.nextGaussian()*locstddev);
@@ -478,8 +479,8 @@ public class SingleTT {
 
             Neff = 1f/Neff;
 
-            IJ.log("iter = " + iter);
-//            IJ.log("iter=" + iter + ", Neff=" + Neff + ", g25= " + quantile(g, 25, 100) + ", g50=" + quantile(g, 50, 100) + ", g75=" + quantile(g, 75, 100) + ", th=" + Math.exp(K*0.5f));
+            IJ.log("iter0 = " + iter);
+//            IJ.log("iter0=" + iter0 + ", Neff=" + Neff + ", g25= " + quantile(g, 25, 100) + ", g50=" + quantile(g, 50, 100) + ", g75=" + quantile(g, 75, 100) + ", th=" + Math.exp(K*0.5f));
 //            IJ.log("---");
 //            IJ.log(Arrays.toString(g));
 //            IJ.log("---");
