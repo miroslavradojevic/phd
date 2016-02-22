@@ -8,17 +8,17 @@ public class Z {
     public float x;
     public float y;
     public float z;
-    public float    sig; // cross-section gaussian standard deviation will correspond to the size of the observation
+//    public float    sig; // cross-section gaussian standard deviation will correspond to the size of the observation
     public int      count; // how many out of ro*np are >correlation threshold, will be used to determine if it is clutter
 
     public Z(){}
 
-    public Z(float x, float y, float z, float sig, int count) {
+    public Z(float x, float y, float z, int count) { // float sig,
 
         this.x = x;
         this.y = y;
         this.z = z;
-        this.sig = sig;
+//        this.sig = sig;
         this.count = count;
 
     }
@@ -28,7 +28,7 @@ public class Z {
         this.x = zin.x;
         this.y = zin.y;
         this.z = zin.z;
-        this.sig = zin.sig;
+//        this.sig = zin.sig;
         this.count = zin.count;
 
     }
