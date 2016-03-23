@@ -11,15 +11,17 @@ import ij.io.OpenDialog;
 import ij.measure.Measurements;
 import ij.plugin.ImageCalculator;
 import ij.plugin.PlugIn;
+import ij.plugin.filter.MaximumFinder;
 import ij.process.*;
 
+import javax.tools.Tool;
 import java.io.*;
 import java.util.*;
 
 public class MTracker implements PlugIn {
 
     // color coding for the swc in vaa3d
-    static int BLUE=3, YELLOW=6, RED=2, BLACK=1, MAGENTA=5, WHITE=0, VIOLET=4, GREEN=7, OCHRE=8, WEAK_GREEN=9, PINK=10, BLUEBERRY=12;
+    static int WHITE=0, BLACK=1, RED=2, BLUE=3, VIOLET=4, MAGENTA=5, YELLOW=6, GREEN=7, OCHRE=8, WEAK_GREEN=9, PINK=10, BLUEBERRY=12;
 
     AutoThresholder.Method thmethod = AutoThresholder.Method.IsoData; // IsoData Moments Otsu Triangle Default
 
@@ -31,16 +33,16 @@ public class MTracker implements PlugIn {
     int[] no;                           // initial multi-object state cardinality
     String no_csv = "";                 // comma separated string of test parameters
 
-    int[]   ro;                  // number of particles per object
+    int[]   ro;                         // number of particles per object
     String  ro_csv = "";
 
-    int[]   ni;                  // number of predictions per particle
+    int[]   ni;                         // number of predictions per particle
     String  ni_csv = "";
 
-    int[] krad;                  // tube diameter in pixels
+    int[] krad;                         // tube diameter in pixels
     String krad_csv = "";
 
-    int[]   step;                // motion step
+    int[]   step;                       // motion step
     String  step_csv = "";
 
     float[] kappa;                      // von Mises angular probability
@@ -58,10 +60,10 @@ public class MTracker implements PlugIn {
     float[] kc;                         // clutter phd decay parameter
     String kc_csv = "";
 
-    int[]  maxepoch;                    // epoch limit
-    String maxepoch_csv = "";           // comma separated input
+    int     maxepoch = -1;                    // epoch limit
+//    String maxepoch_csv = "";           // comma separated input
 
-    int TUBE_RADIUS = 10;                // used at _init(), radius of the sphere used for the seed point
+    int TUBE_RADIUS = 3;                // used at _init(), radius of the sphere used for the seed point
 
     // save results
     int     maxiter = -1;               // iteration limit (hundreds are fine)
@@ -77,11 +79,14 @@ public class MTracker implements PlugIn {
     String midresdir = "";              // output directories, filenames
 
     // loggers
-    public int[]    X_cnt       = new int[]{0};
+    public int[]    X_cnt       = new int[]{0}; // these are counters used in logging to count lines in swc output
     public String   X_swclog    = "";
 
-    public int[]    XP_cnt      = new int[]{0};
+    public int[]    XP_cnt      = new int[]{0}; //
     public String   XP_swclog   = "";
+
+    public int[]    ZP_cnt      = new int[]{0}; // logging for the particles used to get the observations
+    public String   ZP_swclog   = "";
 
     public int[]    Z_cnt = new int[]{0};
     public String   Z_swclog = "";
@@ -146,11 +151,11 @@ public class MTracker implements PlugIn {
 
             GenericDialog gd = new GenericDialog("TreeDelinPHD");
             gd.addMessage("");//tubularity measure
-            gd.addStringField("sigmas",       Prefs.get("com.braincadet.ndelin.multi.sigmas",       sigmas), 10);
-            gd.addStringField("th",           Prefs.get("com.braincadet.ndelin.multi.th",           th_csv), 10);
+            gd.addStringField("sigmas",         Prefs.get("com.braincadet.ndelin.multi.sigmas",       sigmas), 10);
+            gd.addStringField("th",             Prefs.get("com.braincadet.ndelin.multi.th",           th_csv), 10);
             gd.addMessage("");
-            gd.addStringField("no",           Prefs.get("com.braincadet.ndelin.multi.no",           no_csv), 10);
-            gd.addStringField("ro",           Prefs.get("com.braincadet.ndelin.multi.ro",           ro_csv), 10);
+            gd.addStringField("no",             Prefs.get("com.braincadet.ndelin.multi.no",           no_csv), 10);
+            gd.addStringField("ro",             Prefs.get("com.braincadet.ndelin.multi.ro",           ro_csv), 10);
             gd.addStringField("ni",             Prefs.get("com.braincadet.ndelin.multi.ni",           ni_csv), 10);
             gd.addStringField("step",           Prefs.get("com.braincadet.ndelin.multi.step",         step_csv), 10);
             gd.addStringField("kappa",          Prefs.get("com.braincadet.ndelin.multi.kappa",        kappa_csv), 10);
@@ -162,7 +167,7 @@ public class MTracker implements PlugIn {
             gd.addStringField("kc",             Prefs.get("com.braincadet.ndelin.multi.kc",           kc_csv), 10);
             gd.addMessage("");
             gd.addNumericField("maxiter",       Prefs.get("com.braincadet.ndelin.multi.maxiter",      maxiter), 0, 5, "");
-            gd.addStringField("maxepoch",       Prefs.get("com.braincadet.ndelin.multi.maxepoch",     maxepoch_csv), 10);
+            gd.addStringField("maxepoch",      Prefs.get("com.braincadet.ndelin.multi.maxepoch",      Integer.toString(maxepoch)), 10);
             gd.addCheckbox("savemidres",        Prefs.get("com.braincadet.ndelin.multi.savemidres",   savemidres));
             gd.addCheckbox("usetness",          Prefs.get("com.braincadet.ndelin.multi.usetness",     usetness));
 
@@ -180,8 +185,10 @@ public class MTracker implements PlugIn {
             pD_csv = gd.getNextString();          Prefs.set("com.braincadet.ndelin.multi.pd",         pD_csv);
             krad_csv = gd.getNextString();        Prefs.set("com.braincadet.ndelin.multi.krad",       krad_csv);
             kc_csv = gd.getNextString();          Prefs.set("com.braincadet.ndelin.multi.kc",         kc_csv);
-            maxiter = (int) gd.getNextNumber();   Prefs.set("com.braincadet.ndelin.multi.maxiter",    maxiter);
-            maxepoch_csv = gd.getNextString();    Prefs.set("com.braincadet.ndelin.multi.maxepoch",   maxepoch_csv);
+            maxiter =  (int)gd.getNextNumber();   Prefs.set("com.braincadet.ndelin.multi.maxiter",    maxiter);
+            String maxepoch_str = gd.getNextString();
+            maxepoch = (maxepoch_str.equals("Inf"))? Integer.MAX_VALUE : Integer.valueOf(maxepoch_str) ;
+                                                  Prefs.set("com.braincadet.ndelin.multi.maxepoch",   maxepoch);
             savemidres = gd.getNextBoolean();     Prefs.set("com.braincadet.ndelin.multi.savemidres", savemidres);
             usetness = gd.getNextBoolean();       Prefs.set("com.braincadet.ndelin.multi.usetness",   usetness);
 
@@ -202,8 +209,9 @@ public class MTracker implements PlugIn {
 
             kc_csv = Macro.getValue(Macro.getOptions(), "kc",                                         kc_csv);
 
-            maxiter = Integer.valueOf(Macro.getValue(Macro.getOptions(),     "maxiter",               String.valueOf(maxiter)));
-            maxepoch_csv = Macro.getValue(Macro.getOptions(), "maxepoch",                             maxepoch_csv);
+            maxiter  = Integer.valueOf(Macro.getValue(Macro.getOptions(),   "maxiter",  String.valueOf(maxiter)));
+            String maxepoch_str = Macro.getValue(Macro.getOptions(),   "maxepoch", String.valueOf(maxepoch));
+            maxepoch = (maxepoch_str.equals("Inf"))? Integer.MAX_VALUE : Integer.valueOf(maxepoch_str);//Macro.getValue(Macro.getOptions(), "maxepoch",                             maxepoch_csv);
             savemidres = Boolean.valueOf(Macro.getValue(Macro.getOptions(),  "savemidres",            String.valueOf(false)));
             usetness = Boolean.valueOf(Macro.getValue(Macro.getOptions(), "usetness",                 String.valueOf(true)));
         }
@@ -256,15 +264,17 @@ public class MTracker implements PlugIn {
         kc = new float[dd.length];
         for (int i = 0; i < dd.length; i++) kc[i] = Float.valueOf(dd[i]);
 
-        dd = maxepoch_csv.split(","); if (dd.length==0) return;
-        maxepoch = new int[dd.length];
-        for (int i = 0; i < dd.length; i++) maxepoch[i] = Integer.valueOf(dd[i]);
+//        dd = maxepoch_csv.split(","); if (dd.length==0) return;
+//        maxepoch = new int[dd.length];
+//        for (int i = 0; i < dd.length; i++) maxepoch[i] = Integer.valueOf(dd[i]);
+
+//        if (true) {IJ.log("maxepoch = " + maxepoch); return;}
 
         //******************************************************************
         ImageStack  is_tness;
         ImagePlus   ip_tness=null;
 
-        if (usetness) {
+        if (true) {//usetness
 
             IJ.log(" -- prefiltering...");
             is_tness = new ImageStack(N, M);
@@ -281,9 +291,15 @@ public class MTracker implements PlugIn {
                 float sig = Float.valueOf(readLn[i].trim()).floatValue();
                 TubenessProcessor tp = new TubenessProcessor(sig, false);
                 ImagePlus result = tp.generateImage(ip_load);
-                IJ.run(result, "Multiply...", "value=" + IJ.d2s(1f/readLn.length,3) + " stack");
+
                 ImageCalculator ic = new ImageCalculator();
-                ic.run("Add 32-bit stack", ip_tness, result); // result of the addition is placed in ip_tness
+
+                // average
+//                IJ.run(result, "Multiply...", "value=" + IJ.d2s(1f/readLn.length,3) + " stack");
+//                ic.run("Add 32-bit stack", ip_tness, result); // result of the addition is placed in ip_tness
+
+                // max
+                ic.run("Max 32-bit stack", ip_tness, result);
             }
 
             ip_tness.setCalibration(null);
@@ -291,9 +307,10 @@ public class MTracker implements PlugIn {
             if (savemidres) {
                 ImagePlus temp = ip_tness.duplicate();
                 IJ.run(temp, "8-bit", ""); // convert to 8 bit before saving
-                IJ.log("saving... " + midresdir + File.separator + "tness," + sigmas + ".tif");
+//                IJ.log("saving... " + midresdir + File.separator + "tness," + sigmas + ".tif");
                 IJ.saveAs(temp, "Tiff", midresdir + File.separator + "tness," + sigmas + ".tif");
             }
+
         }
 
         // tubeness min-max normalize and store in an array for later and extract locations in a separate array
@@ -348,9 +365,8 @@ public class MTracker implements PlugIn {
                                     for (int i08 = 0; i08 < pD.length; i08++) {
                                         for (int i09 = 0; i09 < th.length; i09++) {
                                             for (int i10 = 0; i10 < kc.length; i10++) {
-                                                for (int i11 = 0; i11 < maxepoch.length; i11++) {
+//                                                for (int i11 = 0; i11 < maxepoch.length; i11++) {
 
-                                                    IJ.log("=================================");
                                                     if (savemidres) {
                                                         Tools.createAndCleanDir(midresdir + File.separator + "g(z|x)");
                                                         Tools.createAndCleanDir(midresdir + File.separator + "suppmap");
@@ -358,36 +374,55 @@ public class MTracker implements PlugIn {
                                                         X_swclog = midresdir + File.separator + "Xk.swc";
                                                         X_cnt[0] = 0;
                                                         Tools.cleanfile(X_swclog);
+
                                                         XP_swclog = midresdir + File.separator + "XPk.swc";
                                                         XP_cnt[0] = 0;
                                                         Tools.cleanfile(XP_swclog);
+
+                                                        ZP_swclog = midresdir + File.separator + "ZPk.swc";
+                                                        ZP_cnt[0] = 0;
+                                                        Tools.cleanfile(ZP_swclog);
+
                                                         Z_swclog = midresdir + File.separator + "Zk.swc";
                                                         Z_cnt[0] = 0;
                                                         Tools.cleanfile(Z_swclog);
 
-                                                        tnessCsvLog = midresdir + File.separator + "tness.log";
+                                                        tnessCsvLog     = midresdir + File.separator + "tness.log";
                                                         Tools.cleanfile(tnessCsvLog);
-                                                        zsizeCsvLog = midresdir + File.separator + "zsize.log";
+                                                        zsizeCsvLog     = midresdir + File.separator + "zsize.log";
                                                         Tools.cleanfile(zsizeCsvLog);
-                                                        phdmassCsvLog = midresdir + File.separator + "phdmass.log";
+                                                        phdmassCsvLog   = midresdir + File.separator + "phdmass.log";
                                                         Tools.cleanfile(phdmassCsvLog);
                                                     }
 
-                                                    ImagePlus impool = (usetness)?ip_tness.duplicate():ip_load.duplicate();
+                                                    ImagePlus impool = ip_tness.duplicate();//(usetness)?ip_tness.duplicate():ip_load.duplicate();
                                                     IJ.run(impool, "8-bit", "");
 
                                                     int threshold = (int) Math.ceil(th[i09] * 255);
-                                                    applythreshold(threshold, impool); // will modify values in itnesscopy
+                                                    applythreshold(threshold, impool);
+
+                                                    Prefs.blackBackground = true;
+                                                    IJ.run(impool, "Skeletonize", "stack");
 
                                                     if (savemidres) {
-                                                        IJ.saveAs(impool, "Tiff", midresdir + File.separator + "fg,th=" + IJ.d2s(th[i09], 2) + ".tif");
+                                                        IJ.saveAs(impool, "Tiff", midresdir + File.separator + "seedpool,th=" + IJ.d2s(th[i09], 2) + ".tif");
                                                     }
 
                                                     ArrayList<Integer> locs = new ArrayList<Integer>();     // list of candidate locations for seed points
                                                     ArrayList<Float> locsw = new ArrayList<Float>();       // weights assigned to each location
 
-                                                    for (int z = 1; z <= P; z++) { // layer count, zcoord is layer-1
-                                                        byte[] slc = (byte[]) impool.getStack().getPixels(z);
+                                                    for (int z = ((P==1)?1:2); z <= ((P==1)?P:P-1); z++) { // layer count, zcoord is layer-1
+
+                                                        byte[] slc;
+
+                                                        if (false) { // alternative seed location - ether local maxima or threshold and then sample by tubularity measure
+                                                            MaximumFinder mf = new MaximumFinder();
+                                                            slc = (byte[])mf.findMaxima(ip_tness.getStack().getProcessor(z), 2, MaximumFinder.SINGLE_POINTS, true).getPixels();
+                                                        }
+                                                        else {
+                                                            slc = (byte[]) impool.getStack().getPixels(z);
+                                                        }
+
                                                         for (int x = 0; x < N; x++) {
                                                             for (int y = 0; y < M; y++) {
 
@@ -395,7 +430,7 @@ public class MTracker implements PlugIn {
 
                                                                 if ((slc[y * N + x] & 0xff) == 255) {
                                                                     locs.add(ii);
-                                                                    locsw.add((float) Math.pow(tness[ii], MultiTT.weight_deg77)); // ((float) Math.exp(tness[ii]));
+                                                                    locsw.add((float) Math.pow(tness[ii], MultiTT.weight_deg77)); //
                                                                 }
                                                             }
                                                         }
@@ -408,7 +443,7 @@ public class MTracker implements PlugIn {
 
                                                     float locs_count = locs.size();
 
-                                                    if (false && savemidres) {
+                                                    if (true && savemidres) {
                                                         // convert before exporting
                                                         ArrayList<int[]> tt = new ArrayList<int[]>(locs.size());
                                                         for (int i = 0; i < locs.size(); i++) {
@@ -420,8 +455,6 @@ public class MTracker implements PlugIn {
                                                         exportlocsxyz(tt, 0.3f, VIOLET, midresdir, "seed_pool");
                                                         tt.clear();
                                                     }
-
-                                                    System.gc();
 
                                                     IJ.log("-- initialize...");
 
@@ -441,11 +474,11 @@ public class MTracker implements PlugIn {
                                                     long t1 = System.currentTimeMillis();
                                                     int epochcnt = 0;
 
-                                                    while (locs.size() > 0 && epochcnt < maxepoch[i11]) {
+                                                    while (locs.size() > 0 && epochcnt < maxepoch) {
 
                                                         epochcnt++;
 
-                                                        IJ.log("e=" + epochcnt + " [" + maxepoch[i11] + "]");
+                                                        IJ.log("e=" + epochcnt + " [" + maxepoch + "]");
 
                                                         iter_count = 0;
 
@@ -456,7 +489,8 @@ public class MTracker implements PlugIn {
                                                             }
                                                         }
 
-                                                        IJ.log(IJ.d2s(locs.size() / 1000f, 1) + "k locations " + IJ.d2s((locs.size()/locs_count)*100f, 1) + "% of the initial pool");
+                                                        IJ.log(IJ.d2s(locs.size() / 1000f, 1) + "k locations \n" +
+                                                                IJ.d2s((locs.size()/locs_count)*100f, 1) + "%    of the initial pool\n------------------\n");
 
                                                         if (locs.size()==0) {
                                                             IJ.log("locs.size()==0");
@@ -472,11 +506,12 @@ public class MTracker implements PlugIn {
                                                             break; // out of while()
                                                         }
 
+                                                        // for plots
                                                         exportlocsxyz(N_o, 10f, RED, ip_load.getOriginalFileInfo().directory + File.separator, IJ.d2s(N_o.size(),0)+"_seeds_");
 
                                                         if (savemidres) {
 
-                                                            exportlocsxyz(N_o, 15f, RED, midresdir, "seeds,e=" + IJ.d2s(epochcnt, 0));
+                                                            exportlocsxyz(N_o, 5f, RED, midresdir, "seeds,e=" + IJ.d2s(epochcnt, 0));
 
                                                             exportXYZW(mtt.Xk, midresdir,       "XWinit,epoch=" + IJ.d2s(epochcnt, 0), MAGENTA);      // phd weights
                                                             exportXYZVxyz(mtt.Xk, midresdir,    "XVinit,epoch=" + IJ.d2s(epochcnt, 0), BLUE);     // directions of particles
@@ -495,9 +530,11 @@ public class MTracker implements PlugIn {
 
                                                         }
 
-//                                                        if (true) {IJ.log("blocked iterations"); break;}
-
                                                         if (mtt.Xk.size() > 0) {
+
+//                                                            IJ.log("mtt.Xk.size() > 0");
+//                                                            IJ.log("mtt.Y.size()="+mtt.Y.size());
+//                                                            if (savemidres) Xlog(mtt.Xk, GREEN);
 
                                                             while (iter_count < maxiter) {
 
@@ -505,21 +542,14 @@ public class MTracker implements PlugIn {
 
                                                                 boolean iterok;
 
-                                                                if (iter_count == 0) {
-                                                                    iterok = mtt._iter1(N, M, P, tness, suppmap);
-//                                                                    iterok = mtt._iter0(N, M, P, tness, suppmap);
-                                                                    //iterok = mtt.iter0(N, M, P, tness, suppmap);
-                                                                }
-                                                                else {
-                                                                    iterok = mtt._iter1(N, M, P, tness, suppmap);
-                                                                    //iterok = mtt.iter1(N, M, P, tness, suppmap);
-                                                                }
+                                                                iterok = mtt._iter1(N, M, P, tness, suppmap);
 
-                                                                if (savemidres) {
+                                                                if (savemidres && iter_count==maxiter-1) { // iter_count%5==0
 
-                                                                    Xlog(mtt.Xk, MAGENTA);
-                                                                    XPlog(mtt.XPk, WEAK_GREEN);
-                                                                    Zlog(mtt.Zk, RED);
+                                                                    Xlog(mtt.Xk, GREEN);
+                                                                    XPlog(mtt.XPk, BLUEBERRY);
+                                                                    Zlog(mtt.Zk, RED, 1f);
+                                                                    ZPlog(mtt.ZPk, OCHRE, .1f);
 
                                                                     if (false) { // set if you wish to have the map, takes lot of resources!
                                                                         String name = "suppmap,iter0=" + IJ.d2s(iter_count, 0);
@@ -547,24 +577,29 @@ public class MTracker implements PlugIn {
                                                         }
                                                         else IJ.log("mtt.Xk.size() == 0");
 
-                                                        // save output before switching to new epoch
-                                                        String delindir = imdir + "NDLN.sig.th.no.ro.ni.krad.stp.kapa.ps.pd.kc.e_" + sigmas + "_" + IJ.d2s(th[i09], 2) + "_" + IJ.d2s(no[i01], 0) + "_" + IJ.d2s(ro[i02], 0) + "_" + IJ.d2s(ni[i03], 0) + "_" + IJ.d2s(krad[i04], 0) + "_" + IJ.d2s(step[i05], 0) + "_" + IJ.d2s(kappa[i06], 1) + "_" + IJ.d2s(pS[i07], 2) + "_" + IJ.d2s(pD[i08], 2) + "_" + IJ.d2s(kc[i10], 1) + "_" + IJ.d2s(epochcnt, 0) + "_" + IJ.d2s(new Random().nextInt(Integer.MAX_VALUE),0);
-                                                        Tools.createAndCleanDir(delindir);
-                                                        remove_double_links(mtt.Y);
-                                                        if (!is_biderectinal_linking(mtt.Y)) {
-                                                            IJ.log("missing link! fault in bidirectional linking");
-                                                            return;
-                                                        }
+                                                        if (epochcnt==maxepoch) { // export each number of iterations  ( || epochcnt%1==0)
 
-                                                        ArrayList<Node> tree = mtt.bfs1(mtt.Y);
-                                                        exportReconstruction(tree, delindir, imnameshort); // export .swc   epochcnt, mtt.Y.size()-1,
+                                                            // save output before switching to new epoch
+                                                            String delindir = imdir + "NDLN.sig.th.no.ro.ni.krad.stp.kapa.ps.pd.kc.e_" + sigmas + "_" + IJ.d2s(th[i09], 2) + "_" + IJ.d2s(no[i01], 0) + "_" + IJ.d2s(ro[i02], 0) + "_" + IJ.d2s(ni[i03], 0) + "_" + IJ.d2s(krad[i04], 0) + "_" + IJ.d2s(step[i05], 0) + "_" + IJ.d2s(kappa[i06], 1) + "_" + IJ.d2s(pS[i07], 2) + "_" + IJ.d2s(pD[i08], 2) + "_" + IJ.d2s(kc[i10], 1) + "_" + IJ.d2s(epochcnt, 0) + "_" + IJ.d2s(new Random().nextInt(Integer.MAX_VALUE),0);
+                                                            Tools.createAndCleanDir(delindir);
+                                                            remove_double_links(mtt.Y);
+                                                            if (!is_biderectinal_linking(mtt.Y)) {
+                                                                IJ.log("missing link! fault in bidirectional linking");
+                                                                return;
+                                                            }
+
+                                                            IJ.log("BFS exports " + mtt.Y.size() + " trees");
+
+                                                            ArrayList<Node> tree = mtt.bfs1(mtt.Y, true);
+                                                            exportReconstruction(tree, delindir, imnameshort); // export .swc   epochcnt, mtt.Y.size()-1,
+                                                        }
 
                                                     } // while there are locations and epochs have not reached the limit
 
                                                     long t2 = System.currentTimeMillis();
-                                                    IJ.log("done. " + IJ.d2s((t2 - t1) / 1000f, 2) + "s. [maxiter=" + maxiter + ", maxepoch=" + maxepoch[i11] + "]");
+                                                    IJ.log("done. " + IJ.d2s((t2 - t1) / 1000f, 2) + "s. [maxiter=" + maxiter + ", maxepoch=" + maxepoch + "]");
 
-                                                    if (false & savemidres) {
+                                                    if (true && savemidres) {
                                                         exportDelineation(mtt.Y, midresdir, imnameshort);   // .ndln file
                                                         exportNodes(mtt.Y, midresdir, imnameshort);         // .swc file with isolated nodes
                                                     }
@@ -573,7 +608,7 @@ public class MTracker implements PlugIn {
                                                     mtt.Xk.clear();
                                                     mtt.Y.clear();
 
-                                                }
+//                                                }
                                             }
                                         }
                                     }
@@ -650,6 +685,8 @@ public class MTracker implements PlugIn {
         loggerX(x, color, XP_swclog, XP_cnt);
     }
 
+    private void ZPlog(ArrayList<X> z, int color, float radius) { loggerZ(z, color, ZP_swclog, ZP_cnt, radius); }
+
     private void loggerX(ArrayList<X> x, int color, String swcfilepath, int[] swcindex) {
         
         try {
@@ -672,11 +709,11 @@ public class MTracker implements PlugIn {
         
     }
 
-    private void Zlog(ArrayList<X> z, int color) {
-        loggerZ(z, color, Z_swclog, Z_cnt);
+    private void Zlog(ArrayList<X> z, int color, float radius) {
+        loggerZ(z, color, Z_swclog, Z_cnt, radius);
     }
 
-    private void loggerZ(ArrayList<X> z, int color, String swcfilepath, int[] swcindex) {
+    private void loggerZ(ArrayList<X> z, int color, String swcfilepath, int[] swcindex, float radius) {
 
         try {
 
@@ -707,7 +744,7 @@ public class MTracker implements PlugIn {
                             IJ.d2s(z.get(i).x,3) + " " +
                             IJ.d2s(z.get(i).y,3) + " " +
                             IJ.d2s(z.get(i).z,3) + " " +
-                            IJ.d2s(1f,3) + " " + (-1));//z.get(i).w
+                            IJ.d2s(radius,3) + " " + (-1));//z.get(i).w
 
 //                }
 
@@ -797,34 +834,6 @@ public class MTracker implements PlugIn {
 
     }
 
-//    private void exportXYZSig(ArrayList<X> Xlist, String outdir, String swcname, int type) {
-//
-//        // exports only locations into swc format for visualization - the rest of the Xk instance is ignored
-//        if (outdir==null || swcname==null) return;
-//
-//        String outfile = outdir + File.separator + swcname + ".swc";
-//
-//        Tools.cleanfile(outfile);
-//
-//        try {
-//            PrintWriter logWriter = new PrintWriter(new BufferedWriter(new FileWriter(outfile, true)));
-//
-//            logWriter.println("#Xk,Yk,Z,Sig");
-//
-//            for (int i = 0; i < Xlist.size(); i++) {
-//                logWriter.println((i+1) + " " + type + " " +
-//                        IJ.d2s(Xlist.get(i).x, 4) + " " +
-//                        IJ.d2s(Xlist.get(i).y, 4) + " " +
-//                        IJ.d2s(Xlist.get(i).z, 4) + " " +
-//                        Xlist.get(i).sig + " " + -1);
-//            }
-//
-//            logWriter.close();
-//
-//        } catch (IOException e) {}
-//
-//    }
-
     private void exportXYZW(ArrayList<X> Xlist, String outdir, String swcname, int type) {
 
         String outfile = outdir + File.separator + swcname + ".swc";
@@ -863,7 +872,7 @@ public class MTracker implements PlugIn {
 
             for (int i = 0; i < nlist.size(); i++) {
                 if (nlist.get(i)!=null) {
-                    logWriter.println((++t) + " " + YELLOW + " " +
+                    logWriter.println((++t) + " " + ((i+1)%10) + " " + // YELLOW
                             IJ.d2s(nlist.get(i).loc[0], 3) + " " +
                             IJ.d2s(nlist.get(i).loc[1], 3) + " " +
                             IJ.d2s(nlist.get(i).loc[2], 3) + " " +
@@ -1109,7 +1118,5 @@ public class MTracker implements PlugIn {
         return offxyz;
 
     }
-
-//    private ArrayList<int[]> initlocs(int n, ArrayList<Integer> l, ArrayList<Float> w){}
 
 }

@@ -24,13 +24,15 @@ public class Stepper {
     public static int ndirs2d = 36;      //
     public static int ndirs3d = 60;      //
     float kappa;
-    float sig;
+//    float sig;
 
+    public int        sz;
     public int[][]    p;        // offs2 * 3
     public float[]    pcws;     // storage for the cummulative sum, does not have to contain all values
     public double[]   d;        // offs2
     public double[][] u;        // offs2 * 3
     public double[][] w;        // ndir * offs
+    // perhaps add w_cws to be complete, for now, it's not necessary
     public double[]   w0;       // offs
     public double[][] v;        // ndir * 3
 
@@ -40,11 +42,13 @@ public class Stepper {
     public int        _sz;      // count
     public int[][]    _p;       // xyz offsets
     public int[][]    _p0;      // xyz offsets
-    public float[]    _pcws;    // cummulative weight sum
+    public float[]    _pcwsX;    // cummulative weight sum for sampling X predicted particles
+    public float[]    _pcwsZ;    // cummulative weight sum for sampling
     public float[]    _pcws0;   // cummulative weight sum (center included)
     public double[]   _d;       //
     public double[][] _u;       //
     public double[][] _w;       //
+    public double[][] _w_cws;   //
     public double[]   _w0;      //
 
     public Stepper(int step, boolean is2d, float kappa, int ro) {
@@ -55,7 +59,6 @@ public class Stepper {
         this.R1 = step;// (step/2<1)?1:(step/2);
         this.is2d = is2d;
         this.kappa = kappa;
-        this.sig = step/2f; // by convention
 
         ArrayList<int[]> off2 = new ArrayList<int[]>(); // R2
         ArrayList<int[]> off1 = new ArrayList<int[]>(); // R1
@@ -91,12 +94,13 @@ public class Stepper {
             }
         }
 
-        p = new int[off2.size()][3];
-        pcws = new float[off2.size()];
-        d = new double[off2.size()];
-        u = new double[off2.size()][3];
+        sz = off2.size();
+        p = new int[sz][3];
+        pcws = new float[sz];
+        d = new double[sz];
+        u = new double[sz][3];
 
-        for (int i = 0; i < off2.size(); i++) {
+        for (int i = 0; i < sz; i++) {
 
             p[i][0] = off2.get(i)[0];
             p[i][1] = off2.get(i)[1];
@@ -107,40 +111,37 @@ public class Stepper {
             u[i][0] = p[i][0]/d[i];
             u[i][1] = p[i][1]/d[i];
             u[i][2] = p[i][2]/d[i];
+
+//            IJ.log("u["+i+"]=("+u[i][0]+","+u[i][1]+","+u[i][2]+")");
         }
 
         v = Tools.calcdirs360(this.is2d, (this.is2d ? ndirs2d : ndirs3d)); // form the directions
 
         double rad, circ, val, dotp; // radial, polar distance
 
-        w  = new double[v.length][off2.size()];
+        w  = new double[v.length][sz];
 
         for (int i = 0; i < v.length; i++) { // v.length == number of directions
 
-//            float wmin=Float.POSITIVE_INFINITY, wmax=Float.NEGATIVE_INFINITY;
             float wsum = 0;
 
-            for (int j = 0; j < p.length; j++) {
+            for (int j = 0; j < sz; j++) {
 
-                rad = Math.exp(-Math.pow(d[j]-R1, 2)/(2*Math.pow(sig,2)));
+                rad = Math.exp(-Math.pow(d[j]-R1, 2)/(2*Math.pow(R1/3f,2)));
 
                 dotp = v[i][0]*u[j][0] + v[i][1]*u[j][1] + v[i][2]*u[j][2];
                 dotp = (dotp>1)? 1 : (dotp<-1)? -1 : dotp;
                 circ = Math.exp(kappa * dotp) / (2.0*3.14* Bessel.I0(kappa)); // von misses distribution
 
-                val = circ * rad;
+                val = (dotp>0)? circ * rad : 0 ;
                 w[i][j] = (float) val;
 
                 wsum += val;
-
-//                if (val<wmin) wmin = (float) val;
-//                if (val>wmax) wmax = (float) val;
 
             }
 
             for (int j = 0; j < p.length; j++)
                 w[i][j] = w[i][j]/wsum;
-//                w[i][j] = (w[i][j] - wmin) / (wmax - wmin);
 
         }
 
@@ -149,7 +150,6 @@ public class Stepper {
         float w0sum = 0;
 
         for (int j = 0; j < p.length; j++) {
-//            rad = Math.exp(-Math.pow(d[j]-R1, 2)/(2*Math.pow(sig,2)));
             w0[j] = (float) (d[j]/R2);
             w0sum += w0[j];
 
@@ -247,7 +247,8 @@ public class Stepper {
 
         _p      = new int[_sz][3];
         _p0     = new int[_sz+1][3];
-        _pcws   = new float[_sz];
+        _pcwsX   = new float[_sz];
+        _pcwsZ   = new float[_sz];
         _pcws0  = new float[_sz+1];
         _d      = new double[_sz];
         _u      = new double[_sz][3];
@@ -268,7 +269,8 @@ public class Stepper {
 
         _p0[_sz][0] = _p0[_sz][1] = _p0[_sz][2] = 0;
 
-        _w  = new double[v.length][_off.size()];
+        _w  = new double[v.length][_sz];
+        _w_cws = new double[v.length][_sz]; // cummulative weight sum (used for sampling)
 
         for (int i = 0; i < v.length; i++) { // v.length == number of directions
 
@@ -280,15 +282,19 @@ public class Stepper {
                 dotp = (dotp>1)? 1 : (dotp<-1)? -1 : dotp;
                 circ = Math.exp(kappa * dotp) / (2.0*3.14* Bessel.I0(kappa)); // von misses distribution
 
-                val = circ * 1f;
+                val = circ * 1f; // this set had radial component cancelled
                 _w[i][j] = (float) val;
 
                 wsum += val;
 
             }
 
-            for (int j = 0; j < _sz; j++)
-                _w[i][j] = _w[i][j]/wsum;
+            for (int j = 0; j < _sz; j++) {
+                _w[i][j] = _w[i][j] / wsum;
+                _w_cws[i][j] = (j==0)? _w[i][j] : (_w[i][j]+_w_cws[i][j-1]);
+            }
+
+//            IJ.log("just check " + _w_cws[i][_sz-1]);
 
         }
 
@@ -320,6 +326,16 @@ public class Stepper {
                 idx = i;
             }
 
+        }
+
+        if (idx==-1) {
+            IJ.log("---");
+            IJ.log("vx,vy,vz: " + vx + "," + vy + "," + vz + "   ");
+            IJ.log("---");
+            String ss = "";
+            for (int i = 0; i < v.length; i++) ss+="[" + v[i][0] + "," + v[i][1] + "," + v[i][2] + "] ";
+            IJ.log(ss);
+            IJ.log("---");
         }
 
         return idx;
