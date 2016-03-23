@@ -301,3 +301,625 @@
                         //                for (int j = 0; j < Nres; j++) {}
                         //            }
                         //        }
+
+
+
+                        //        int mintag = Integer.MAX_VALUE;
+                        //        int maxtag = Integer.MIN_VALUE;
+                        //        for (int i = 0; i < XPk.size(); i++) {
+                        //            if (XPk.get(i).tag<mintag) mintag = XPk.get(i).tag;
+                        //            if (XPk.get(i).tag>maxtag) maxtag = XPk.get(i).tag;
+                        //        }
+                        //        IJ.log("Y.size="+Y.size()+", maxtag="+(Y.size()-1)+"   --->   XPk.tag: " + mintag + " -- "+maxtag);
+
+
+//        for (int i = 0; i < xgrouping.size(); i++) {
+//            for (int j = 0; j < xgrouping.get(i).size(); j++) {
+//                if (zp.get(xgrouping.get(i).get(j)).tag>=Yprev.size()) {
+//                    IJ.log("$$ cluster "+i+" : index "+j + " no reference!!!");
+//                }
+//            }
+//        }
+
+
+//                else {
+                    // those are the clusters that did not have enough counts to be considered as a cluster
+                    // set that XPk particle to null and weight to 0
+                    // it's important that they are not used later on in estimation (if it's not using the resampled values), resampling and update
+                    // tricky to remove them from the x list now
+//                    for (int k = 0; k < xgrouping1.size(); k++) {
+//                        IJ.log("x["+xgrouping1.get(k)+"]=null");
+//                        x.set(, null);
+//                        x.get(xgrouping1.get(k)).w = 0; // so that it's not resampled
+//                    }
+//                }
+
+
+            // calculate score for each cluster (max for all particles in that cluster)
+//            int loc_max = Float.NEGATIVE_INFINITY;
+//            int x = Math.round(xclust.get(desc_idx[ii]).x);
+//            int y = Math.round(xclust.get(desc_idx[ii]).y);
+//            int z = Math.round(xclust.get(desc_idx[ii]).z);
+//            if (x>=0 && x<N && y>=0 && y<M && z>=0 && z<P) {
+//                if (suppmap[z*(N*M)+y*(N)+x]==0) {
+                    // add observation if it is not marked by the suppression map
+//                    X xtt = new X(xclust.get(desc_idx[ii]));
+//                    xtt.tness = tness[z*(N*M)+y*(N)+x];
+//                    zout.add(xtt);
+//                    zout_count.add(cnt.get(ii));
+//                }
+//            }
+            // add tness value to z
+//            int x = Math.round(xtt.x);
+//            int y = Math.round(xtt.y);
+//            int z = Math.round(xtt.z);
+
+
+//        int cntt = 0;
+//        for (int i = 0; i < XG.size(); i++)
+//            for (int j = 0; j < XG.get(i).size(); j++)
+//                cntt++;
+//        IJ.log(cntt+"/"+XPk.size()+" ->  "+IJ.d2s(cntt/(float)XPk.size(),2));
+
+//        if (Gk.size()==0) {
+//            IJ.log("Gk.size()==0 ----> Xk won't be resampled");
+//            return false; // _iter1() should stop iterok=false
+//        }
+
+//        mintag = Integer.MAX_VALUE;
+//        maxtag = Integer.MIN_VALUE;
+//        for (int i = 0; i < XPk.size(); i++) {
+//            if (XPk.get(i).tag<mintag) mintag = XPk.get(i).tag;
+//            if (XPk.get(i).tag>maxtag) maxtag = XPk.get(i).tag;
+//        }
+//        IJ.log("estimate() ----> XPk.tag  : "+mintag+" -- " + maxtag);
+
+        // go through resampled Xk and append to suppmap[] so that those that will be used for prediction are added to the map
+//        for (int i = 0; i < Xk.size(); i++) {
+//
+//            //*** suppression map filled using particles that make cluster tagged with newtag
+//            int x1 = Math.round(Xk.get(i).x);
+//            int y1 = Math.round(Xk.get(i).y);
+//            int z1 = Math.round(Xk.get(i).z);
+//            int tag1 = Xk.get(i).tag;
+//            int ii1 = z1*(N*M)+y1*N+x1;
+//
+//            if (suppmap[ii1]==0) suppmap[ii1] = tag1;
+//
+//            // or fill out the neighbourhood
+//            if (false) {
+//                for (int k = 0; k < offxyz[R_supp].length; k++) {
+//
+//                    int xoff = x1 + offxyz[R_supp][k][0];
+//                    int yoff = y1 + offxyz[R_supp][k][1];
+//                    int zoff = z1 + offxyz[R_supp][k][2];
+//
+//                    if (xoff>=0 && xoff<N && yoff>=0 && yoff<M && zoff>=0 && zoff<P) {
+//
+//                        int ioff = zoff*(N*M)+yoff*N+xoff;
+//
+//                        if (suppmap[ioff]==0) suppmap[ioff] = tag1;
+//                    }
+//                }
+//            }
+//
+//        }
+
+//        mintag = Integer.MAX_VALUE;
+//        maxtag = Integer.MIN_VALUE;
+//        for (int i = 0; i < Xk.size(); i++) {
+//            if (Xk.get(i).tag<mintag) mintag = Xk.get(i).tag;
+//            if (Xk.get(i).tag>maxtag) maxtag = Xk.get(i).tag;
+//        }
+//        IJ.log("resample() ----> Xk.tag: "+mintag+" -- " + maxtag);
+
+
+
+
+//            wmass = (float) mm._w_cws[ip][mm._sz-1];
+//            u1 = (wmass/ni)  * rndgen.nextFloat();
+//            s = 0;
+//            xpick.clear();
+//            for (int j = 0; j < ni; j++) {
+//                float uj = u1 + j * (wmass/ni);
+//                while (uj>mm._w_cws[ip][s] && s<mm._sz-1) s++;
+//                xj = xi + mm._p[s][0]; // add s-th
+//                yj = yi + mm._p[s][1];
+//                zj = zi + mm._p[s][2];
+//                if (xj>=0 && xj<N && yj>=0 && yj<M && zj>=0 && zj<P) {
+//                    ii = zj*(N*M)+yj*N+xj;
+//                    tnessval = tness[ii];
+//                    particle = new X(xj,yj,zj, mm._u[s][0],mm._u[s][1],mm._u[s][2], .66f, tnessval);
+//                    particle.tag = xp.tag;
+//                    xpick.add(particle);
+//                }
+//            }
+
+    /*
+    public boolean iter1(int N, int M, int P, float[] tness, int[] suppmap) {
+
+        if (verbose) IJ.log("|X|="+Xk.size());
+
+        /*/
+/*** prediction ***//*
+/
+        int xi, yi, zi, xj, yj, zj, ii;
+        float tnessval;
+        X particle;
+
+        XPk.clear();
+        XPk.trimToSize();
+        XPk_cws.clear();
+
+        for (int i = 0; i < Xk.size(); i++) {
+
+            X xp = Xk.get(i);
+
+            xi = Math.round(xp.x);
+            yi = Math.round(xp.y);
+            zi = Math.round(xp.z);
+
+            // it's necessary to have local min/max so that values are locally optimal
+            float tmin = Float.POSITIVE_INFINITY;
+            float tmax = Float.NEGATIVE_INFINITY;
+
+            Arrays.fill(mm.pcws, 0);
+            for (int j = 0; j < mm.pcws.length; j++) {
+
+                xj = xi + mm.p[j][0];
+                yj = yi + mm.p[j][1];
+                zj = zi + mm.p[j][2];
+                ii = zj*(N*M)+yj*N+xj;
+
+                mm.pcws[j] = ((xj>=0 && xj<N && yj>=0 && yj<M && zj>=0 && zj<P)? tness[ii] : 0); //  && suppmap[ii]==0
+
+                if (mm.pcws[j]<tmin) tmin = mm.pcws[j];
+                if (mm.pcws[j]>tmax) tmax = mm.pcws[j];
+
+            }
+
+            int ip = mm.getdirection(xp.vx, xp.vy, xp.vz); // direction
+
+            for (int j = 0; j < mm.pcws.length; j++) {
+
+                mm.pcws[j] = (tmax-tmin> Float.MIN_VALUE)? ((mm.pcws[j]-tmin)/(tmax-tmin)) : 0 ;
+                mm.pcws[j] = (float) (Math.pow(mm.pcws[j],weight_deg) * mm.w[ip][j]); //
+                mm.pcws[j] = ((j==0)? mm.pcws[j] : (mm.pcws[j]+mm.pcws[j-1]));
+
+            }
+
+            if (mm.pcws[mm.pcws.length-1]<=Float.MIN_VALUE) continue;
+
+            float wmass = mm.pcws[mm.pcws.length-1];
+            float u1 = (wmass/ni)  * rndgen.nextFloat();
+
+            int s = 0;
+
+            ArrayList<X> xpick = new ArrayList<X>();
+
+            for (int j = 0; j < ni; j++) {
+
+                float uj = u1 + j * (wmass/ni);
+
+                while (uj>mm.pcws[s] & s<mm.pcws.length-1) s++;
+
+                // add s-th
+                xj = xi + mm.p[s][0];
+                yj = yi + mm.p[s][1];
+                zj = zi + mm.p[s][2];
+
+                if (xj>=0 && xj<N && yj>=0 && yj<M && zj>=0 && zj<P) {
+
+                    ii = zj*(N*M)+yj*N+xj;
+
+                    tnessval = tness[ii];
+
+                    if (suppmap[ii]==0) {
+                        particle = new X(xj,yj,zj,   mm.u[s][0],mm.u[s][1],mm.u[s][2], 99, tnessval);
+                        particle.tag = xp.tag;
+                        xpick.add(particle);
+                    }
+                    else {
+                        IJ.log("wanted to pick one with suppmapp>0");
+                    }
+
+                }
+
+            }
+
+            // add once it is clear how many there are
+            for (int j = 0; j < xpick.size(); j++) {
+                xpick.get(j).w = pS * xp.w * (1f/xpick.size());
+                XPk.add(xpick.get(j));
+                if (XPk_cws.size()==0)  XPk_cws.add(xpick.get(j).w);
+                else                    XPk_cws.add(xpick.get(j).w + XPk_cws.get(XPk_cws.size()-1));
+            }
+
+        } // go through Xk PHD particles
+
+        if (verbose) IJ.log("|XPk|= "+XPk.size());
+
+        if (XPk.size()==0) {
+            IJ.log("XPk.size()==0");
+            return false;
+        }
+
+        /*/
+/** measure **//*
+/
+        Zk.clear();
+        Zk.trimToSize();
+        Zk_cnt.clear();
+
+//        measure(XPk, kernel_radius, N, M, P, tness, Zk, Zk_cnt, null);//suppmap
+        measure(XPk, kernel_radius, Y, N, M, P, tness, Zk);
+
+        if (verbose) IJ.log("|Z|="+Zk.size());
+
+        if (Zk.size()==0) {
+            IJ.log("Zk.size()==0");
+            return false;
+        }
+
+        /*/
+/** update **//*
+/
+        XPk_cws = update(XPk, Zk); // updated weights will be added to cws output
+
+        phdmass = XPk_cws.get(XPk_cws.size()-1);
+        if (verbose) IJ.log("PHD="  +IJ.d2s(phdmass,2));
+
+        if (Math.round(phdmass)<1) {
+            IJ.log("Math.round(phdmass)<1");
+            return false;
+        }
+
+        if (Math.round(phdmass)>OBJECT_LIMIT) {
+            IJ.log("LIMIT: Math.round(phdmass)>" + OBJECT_LIMIT);
+            phdmass = OBJECT_LIMIT;
+        }
+
+        int prevYsize = Y.size();
+        estimate(XPk, kernel_radius, suppmap, R_supp, N, M, P, Y); // final estimates
+        if (verbose) IJ.log("|Y|=" + (Y.size()-prevYsize));
+
+        npcles = Math.round(phdmass)*ro;
+        if (verbose) IJ.log("npcles="+npcles);
+        resample(XPk, XPk_cws, npcles, Xk);
+
+        return true;
+
+    }
+
+    */
+    /*
+
+    public boolean iter0(int N, int M, int P, float[] tness, int[] suppmap) {
+
+        if (verbose) IJ.log("|X|="+Xk.size());
+        /*//*** prediction ***//*/
+        int xi, yi, zi, xj, yj, zj, ii;
+        float tnessval;
+        X particle;
+
+        XPk.clear();
+        XPk.trimToSize();
+        XPk_cws.clear();
+
+        for (int i = 0; i < Xk.size(); i++) {
+
+            X xp = Xk.get(i);
+
+            xi = Math.round(xp.x);
+            yi = Math.round(xp.y);
+            zi = Math.round(xp.z);
+
+            // it's necessary to have local min/max so that values are locally optimal
+            float tmin = Float.POSITIVE_INFINITY;
+            float tmax = Float.NEGATIVE_INFINITY;
+
+            Arrays.fill(mm.pcws, 0);
+            for (int j = 0; j < mm.pcws.length; j++) {
+
+                xj = xi + mm.p[j][0];
+                yj = yi + mm.p[j][1];
+                zj = zi + mm.p[j][2];
+                ii = zj*(N*M)+yj*N+xj;
+
+                mm.pcws[j] = (xj>=0 && xj<N && yj>=0 && yj<M && zj>=0 && zj<P)? tness[ii] : 0;
+
+                if (mm.pcws[j]<tmin) tmin = mm.pcws[j];
+                if (mm.pcws[j]>tmax) tmax = mm.pcws[j];
+
+            }
+
+            for (int j = 0; j < mm.pcws.length; j++) {
+
+                mm.pcws[j] = (tmax-tmin> Float.MIN_VALUE)? ((mm.pcws[j]-tmin)/(tmax-tmin)) : 0 ;
+                mm.pcws[j] = (float) (Math.pow(mm.pcws[j],weight_deg) * 1f); // mm.w0[j]
+                mm.pcws[j] = ((j==0)? mm.pcws[j] : (mm.pcws[j]+mm.pcws[j-1]));
+
+            }
+
+            if (mm.pcws[mm.pcws.length-1]<=Float.MIN_VALUE) continue;
+
+            float wmass = mm.pcws[mm.pcws.length-1];
+            float u1 = (wmass/ni)  * rndgen.nextFloat();
+
+            int s = 0;
+
+            ArrayList<X> xpick = new ArrayList<X>();
+
+            for (int j = 0; j < ni; j++) {
+
+                float uj = u1 + j * (wmass/ni);
+
+                while (uj>mm.pcws[s] && s<=mm.pcws.length-1) s++;
+
+                // add s-th
+                xj = xi + mm.p[s][0];
+                yj = yi + mm.p[s][1];
+                zj = zi + mm.p[s][2];
+
+                if (xj>=0 && xj<N && yj>=0 && yj<M && zj>=0 && zj<P) {
+
+                    ii = zj*(N*M)+yj*N+xj;
+
+                    tnessval = tness[ii];
+
+                    if (suppmap[ii]==0) { // finally select those that were not suppressed
+                        particle = new X(xj,yj,zj,   mm.u[s][0],mm.u[s][1],mm.u[s][2],    99, tnessval);// 1,1,
+                        particle.tag = xp.tag;
+                        xpick.add(particle);
+                    }
+//                    else {
+//                        IJ.log("wanted to pick one with suppmapp>0");
+//                    }
+
+                }
+
+            }
+
+            // add once it is clear how many there are
+            for (int j = 0; j < xpick.size(); j++) {
+                xpick.get(j).w = pS * xp.w * (1f/xpick.size());
+                XPk.add(xpick.get(j));
+                if (XPk_cws.size()==0)  XPk_cws.add(xpick.get(j).w);
+                else                    XPk_cws.add(xpick.get(j).w + XPk_cws.get(XPk_cws.size()-1));
+            }
+
+        } // go through Xk PHD particles
+
+        if (verbose) IJ.log("|XPk|= "+XPk.size());
+
+        if (XPk.size()==0) {
+            IJ.log("XPk.size()==0");
+            return false;
+        }
+
+        /*//** measure **//*/
+        Zk.clear();
+        Zk.trimToSize();
+        Zk_cnt.clear();
+
+//        measure(XPk, kernel_radius, N, M, P, tness, Zk, Zk_cnt, null);//suppmap
+        measure(XPk, kernel_radius, Y, N, M, P, tness, Zk);
+
+        if (verbose) IJ.log("|Z|="+Zk.size());
+
+        if (Zk.size()==0) {
+            IJ.log("Zk.size()==0");
+            return false;
+        }
+
+        /*//** update **//*/
+        XPk_cws = update(XPk, Zk); // updated weights will be added to cws output
+
+        phdmass = XPk_cws.get(XPk_cws.size()-1);
+        if (verbose) IJ.log("PHD="  +IJ.d2s(phdmass,2));
+
+        if (Math.round(phdmass)<1) {
+            IJ.log("Math.round(phdmass)<1");
+            return false;
+        }
+
+        if (Math.round(phdmass)>OBJECT_LIMIT) {
+            IJ.log("LIMIT: Math.round(phdmass)>" + OBJECT_LIMIT);
+            phdmass = OBJECT_LIMIT;
+        }
+
+        int prevYsize = Y.size();
+        estimate(XPk, kernel_radius, suppmap, R_supp, N, M, P, Y); // final estimates
+        if (verbose) IJ.log("|Y|=" + (Y.size()-prevYsize));
+
+        npcles = Math.round(phdmass)*ro;
+        if (verbose) IJ.log("npcles="+npcles);
+        resample(XPk, XPk_cws, npcles, Xk);
+
+        return true;
+
+    }
+    */
+    /*
+    public boolean _iter0(int N, int M, int P, float[] tness, int[] suppmap) {
+
+        String eventlog = "|X|="+ Xk.size() +" ";
+
+        /*//*** prediction ***//*/
+        int xi, yi, zi, xj, yj, zj, ii;
+        float tnessval;
+        X particle;
+
+        XPk.clear();
+        XPk.trimToSize();
+        XPk_cws.clear();
+
+        for (int i = 0; i < Xk.size(); i++) {
+
+            X xp = Xk.get(i);
+
+            xi = Math.round(xp.x);
+            yi = Math.round(xp.y);
+            zi = Math.round(xp.z);
+
+            // it's necessary to have local min/max so that values are locally optimal
+            float tmin = Float.POSITIVE_INFINITY;
+            float tmax = Float.NEGATIVE_INFINITY;
+
+            Arrays.fill(mm._pcws, 0);
+
+            for (int j = 0; j < mm._pcws.length; j++) {
+
+                xj = xi + mm._p[j][0];
+                yj = yi + mm._p[j][1];
+                zj = zi + mm._p[j][2];
+                ii = zj*(N*M)+yj*N+xj;
+
+                mm._pcws[j] = (xj>=0 && xj<N && yj>=0 && yj<M && zj>=0 && zj<P)? tness[ii] : 0;
+
+                if (mm._pcws[j]<tmin) tmin = mm._pcws[j];
+                if (mm._pcws[j]>tmax) tmax = mm._pcws[j];
+
+            }
+
+            for (int j = 0; j < mm._pcws.length; j++) {
+
+                mm._pcws[j] = (tmax-tmin> Float.MIN_VALUE)? ((mm._pcws[j]-tmin)/(tmax-tmin)) : 0 ;
+                mm._pcws[j] = (float) (Math.pow(mm._pcws[j],weight_deg) * mm._w0[j]);
+                mm._pcws[j] = (j==0)? mm._pcws[j] : (mm._pcws[j]+mm._pcws[j-1]);
+
+            }
+
+            if (mm._pcws[mm._pcws.length-1]<=Float.MIN_VALUE) {IJ.log("Xk["+i+"] had wmass "+mm._pcws[mm._pcws.length-1]); continue;}
+
+            float wmass = mm._pcws[mm._pcws.length-1];
+            float u1 = (wmass/ni)  * rndgen.nextFloat();
+
+            int s = 0;
+
+            ArrayList<X> xpick = new ArrayList<X>();
+
+            for (int j = 0; j < ni; j++) {
+
+                float uj = u1 + j * (wmass/ni);
+
+                while (uj>mm._pcws[s] && s<mm._pcws.length-1) s++;
+
+                // add s-th
+                xj = xi + mm._p[s][0];
+                yj = yi + mm._p[s][1];
+                zj = zi + mm._p[s][2];
+
+                if (xj>=0 && xj<N && yj>=0 && yj<M && zj>=0 && zj<P) {
+
+                    ii = zj*(N*M)+yj*N+xj;
+
+                    tnessval = tness[ii];
+                    // finally select those that were not suppressed (that don't overlap with previous particle trace)
+                    if (suppmap[ii]==0) {
+                        particle = new X(
+                                xj,yj,zj,
+                                mm._u[s][0],mm._u[s][1],mm._u[s][2],
+                                99, tnessval);
+                        particle.tag = xp.tag;
+                        xpick.add(particle);
+                    }
+
+                }
+
+            }
+
+            // add once it is clear how many there are
+            for (int j = 0; j < xpick.size(); j++) {
+                xpick.get(j).w = pS * xp.w * (1f/xpick.size());
+                XPk.add(xpick.get(j));
+                if (XPk_cws.size()==0)  XPk_cws.add(xpick.get(j).w);
+                else                    XPk_cws.add(xpick.get(j).w + XPk_cws.get(XPk_cws.size()-1));
+            }
+
+        } // go through Xk PHD particles
+
+        eventlog += "|XPk|= "+XPk.size()+" ";
+
+        if (XPk.size()==0) {
+            IJ.log("XPk.size()==0");
+            return false;
+        }
+
+        /*//** measure **//*/
+        Zk.clear();
+        Zk.trimToSize();
+        Zk_cnt.clear();
+
+//        measure(XPk, kernel_radius, N, M, P, tness, Zk, Zk_cnt, null);//suppmap
+        measure(XPk, kernel_radius, Y, N, M, P, tness, Zk);
+
+        eventlog += "|Z|=" + Zk.size() + " ";
+
+        if (Zk.size()==0) {
+            IJ.log("Zk.size()==0");
+            return false;
+        }
+
+        /*//** update **//*/
+        XPk_cws = update(XPk, Zk); // updated weights will be added to cws output
+
+        phdmass = XPk_cws.get(XPk_cws.size()-1);
+
+        eventlog += "PHD="  +IJ.d2s(phdmass,2) + " ";
+
+        if (Math.round(phdmass)<1) {
+            IJ.log("Math.round(phdmass)<1");
+            return false;
+        }
+
+        if (Math.round(phdmass)>OBJECT_LIMIT) {
+            IJ.log("LIMIT: Math.round(phdmass)>" + OBJECT_LIMIT);
+            phdmass = OBJECT_LIMIT;
+        }
+
+        int prevYsize = Y.size();
+        estimate(XPk,kernel_radius,suppmap,R_supp,N,M,P,Y);
+
+        eventlog += "|Y|=" + (Y.size()-prevYsize)+" ";
+
+        npcles = Math.round(phdmass)*ro;
+
+        resample(XPk, XPk_cws, npcles, Xk);
+
+        if (verbose) IJ.log(eventlog);
+
+        return true;
+
+    }
+    */
+
+
+
+    //    private void exportXYZSig(ArrayList<X> Xlist, String outdir, String swcname, int type) {
+    //
+    //        // exports only locations into swc format for visualization - the rest of the Xk instance is ignored
+    //        if (outdir==null || swcname==null) return;
+    //
+    //        String outfile = outdir + File.separator + swcname + ".swc";
+    //
+    //        Tools.cleanfile(outfile);
+    //
+    //        try {
+    //            PrintWriter logWriter = new PrintWriter(new BufferedWriter(new FileWriter(outfile, true)));
+    //
+    //            logWriter.println("#Xk,Yk,Z,Sig");
+    //
+    //            for (int i = 0; i < Xlist.size(); i++) {
+    //                logWriter.println((i+1) + " " + type + " " +
+    //                        IJ.d2s(Xlist.get(i).x, 4) + " " +
+    //                        IJ.d2s(Xlist.get(i).y, 4) + " " +
+    //                        IJ.d2s(Xlist.get(i).z, 4) + " " +
+    //                        Xlist.get(i).sig + " " + -1);
+    //            }
+    //
+    //            logWriter.close();
+    //
+    //        } catch (IOException e) {}
+    //
+    //    }

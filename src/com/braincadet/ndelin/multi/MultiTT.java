@@ -1,6 +1,5 @@
 package com.braincadet.ndelin.multi;
 
-import com.braincadet.ndelin.MTracker;
 import com.braincadet.ndelin.fun.Tools;
 import com.braincadet.ndelin.swc.Node;
 import ij.IJ;
@@ -39,7 +38,7 @@ public class MultiTT {
     float       pD = Float.NaN;             // detection probability
     public float cluttertness = Float.NaN;   // 0-background, 1-tubularity level at which _init objects are
     float       kclutt = Float.NaN;         // drop in PHD measure of the clutter
-    double      tnessinit = Double.NaN;      // tubularity level at initial objects
+//    double      tnessinit = Double.NaN;      // tubularity level at initial objects
 
     float[][]   vxyzUniform;                // 2d, 3d directions
 
@@ -57,16 +56,20 @@ public class MultiTT {
     // phd filtering variables
     public ArrayList<X> Xk;                     // multi object phd particles
     public ArrayList<X> XPk;                    // persistent object particle
-    public ArrayList<X> Zk;                     // measurements
-    public ArrayList<Integer> Zk_cnt;           // measurement counts
+//    public ArrayList<ArrayList<Integer>> XPCk;  // XPk list indexes per cluster (to select those that will be used in Y and suppmap)
     public ArrayList<Float> XPk_cws;            // cummulative weight sum for the predicted particles
+
+    public ArrayList<X> Zk;                     // measurements
+    public ArrayList<X> ZPk;                    // predicted paritcles used to get the measurements
+    public ArrayList<ArrayList<Integer>> ZPCk;  // ZPk list indexes per cluster (to select those that will be used in Zk)
+
     public ArrayList<Node> Y;
 
-    public static int   OBJECT_LIMIT = 200;
+    public static int   OBJECT_LIMIT = 150;     // limit amount of objects filtered
     public static int   MAXITER     = Integer.MAX_VALUE;
     public static float EPSILON2    = 0.000001f;
 
-    private X[]         Xpred;   // auxilliary storage for predicted particles
+//    private X[]         Xpred;   // auxilliary storage for predicted particles
     public int          npcles;  // number of particles approximating the probability density
     public float        phdmass; //
 
@@ -83,11 +86,12 @@ public class MultiTT {
     ArrayList[]     nbridxs;
 
     boolean verbose = true;
-    public int MIN_CLUST = 2;
     public int R_supp = 0;
     public float gzx_sigma = 2f; // used in calculating likelihood, the distance towards measurement
     public static float weight_deg = 5;
     public static float weight_deg77 = 6; // for init locations
+    int MIN_CLUST_SIZE = -1; //(int) Math.round(0.1*x.size()); will refer to ni
+    float wmin = 0.4f;
 
     public MultiTT(boolean is2d, int no, int ro, int ni, int krad, int step, float kappa, float pS, float pD, float cluttertness, float kclutt) {
 
@@ -136,6 +140,7 @@ public class MultiTT {
         this.nobjstart = no;
         this.ro = ro;
         this.ni = ni;
+        this.MIN_CLUST_SIZE = 2*ni;
         this.kernel_radius = krad;
         this.step = step;
         this.kappa = kappa;
@@ -145,20 +150,22 @@ public class MultiTT {
         this.kclutt = kclutt;
 
         mm = new Stepper(this.step, this.is2d, this.kappa, this.ro);
-
 //        IJ.log("TOTAL MEMORY = "+ MTracker.bytesToMegabytes( Runtime.getRuntime().totalMemory()) + " Mb" );
 
-        Xk = new ArrayList<X>();            //
-        XPk = new ArrayList<X>();           // predicted particles
-        Zk = new ArrayList<X>();            // thresholded particles
-        Zk_cnt = new ArrayList<Integer>();  //
-        XPk_cws = new ArrayList<Float>();   //
+        Xk = new ArrayList<X>();
+        XPk = new ArrayList<X>();
+//        XPCk = new ArrayList<ArrayList<Integer>>();
+        XPk_cws = new ArrayList<Float>();
+
+        Zk = new ArrayList<X>();
+        ZPk = new ArrayList<X>();
+        ZPCk = new ArrayList<ArrayList<Integer>>();
+
         Y = new ArrayList<Node>();
         Y.add(null);
 
         // variables used in calculating iterations
         int CAPACITY = OBJECT_LIMIT*ro*ni;
-//        IJ.log("CAPACITY="+IJ.d2s(CAPACITY/1000f,1)+"k");
         xw      = new float[CAPACITY];
         conv    = new float[CAPACITY][3];
         labels  = new int[CAPACITY];
@@ -166,12 +173,6 @@ public class MultiTT {
         nbridxs = new ArrayList[CAPACITY];
         for (int i = 0; i < CAPACITY; i++)
             nbridxs[i] = new ArrayList<Integer>();
-
-        Xpred = new X[2];
-        Xpred[0] = new X();
-        Xpred[1] = new X();
-
-        IJ.log("TOTAL MEMORY = "+ MTracker.bytesToMegabytes( Runtime.getRuntime().totalMemory()) + " Mb" );
 
         // g, Cz will be allocated each iteration
         vxyzUniform = Tools.calcdirs180(this.is2d, (this.is2d ? ndirs2d : ndirs3d)); // form the directions
@@ -775,6 +776,14 @@ public class MultiTT {
                 Xk.get(j).vx = Xk.get(j).vx / dd;
                 Xk.get(j).vy = Xk.get(j).vy / dd;
                 Xk.get(j).vz = Xk.get(j).vz / dd;
+
+                if (Float.isNaN(Xk.get(j).vx) || Float.isNaN(Xk.get(j).vy) || Float.isNaN(Xk.get(j).vz)) {
+                    IJ.log("at initialization");
+                    IJ.log("Float.isNaN(Xk.get(j).vx) || Float.isNaN(Xk.get(j).vy) || Float.isNaN(Xk.get(j).vz)");
+                    IJ.log("Xk location= "+Xk.get(j).x+","+Xk.get(j).y+","+Xk.get(j).z);
+                    IJ.log("centroid= " +xc+","+yc+","+zc);
+                }
+
                 // normalize weights (~tubularity, and sum up to 1 for each object)
                 Xk.get(j).w = Xk.get(j).w / sumweights;
             }
@@ -788,7 +797,8 @@ public class MultiTT {
         String log = "_init,\t";
         log+="|X|="+Xk.size()+", ";
         int prevYsize = Y.size();
-        phdmass = estimate(Xk, kernel_radius, suppmap, R_supp, N, M, P, Y);
+        // at iter0 Xk are used for the estimation (clustering)
+        phdmass = estimate(Xk, kernel_radius, suppmap, N, M, P, Y);
 
         log+="PHD=" + IJ.d2s(phdmass,2)+", ";
         log+="|Yk|=" + (Y.size()-prevYsize) + ", ";
@@ -798,370 +808,81 @@ public class MultiTT {
 
     }
 
-    public boolean iter1(int N, int M, int P, float[] tness, int[] suppmap) {
-
-        if (verbose) IJ.log("|X|="+Xk.size());
-
-        //*** prediction ***//
-        int xi, yi, zi, xj, yj, zj, ii;
-        float tnessval;
-        X particle;
-
-        XPk.clear();
-        XPk.trimToSize();
-        XPk_cws.clear();
-
-        for (int i = 0; i < Xk.size(); i++) {
-
-            X xp = Xk.get(i);
-
-            xi = Math.round(xp.x);
-            yi = Math.round(xp.y);
-            zi = Math.round(xp.z);
-
-            // it's necessary to have local min/max so that values are locally optimal
-            float tmin = Float.POSITIVE_INFINITY;
-            float tmax = Float.NEGATIVE_INFINITY;
-
-            Arrays.fill(mm.pcws, 0);
-            for (int j = 0; j < mm.pcws.length; j++) {
-
-                xj = xi + mm.p[j][0];
-                yj = yi + mm.p[j][1];
-                zj = zi + mm.p[j][2];
-                ii = zj*(N*M)+yj*N+xj;
-
-                mm.pcws[j] = ((xj>=0 && xj<N && yj>=0 && yj<M && zj>=0 && zj<P)? tness[ii] : 0); //  && suppmap[ii]==0
-
-                if (mm.pcws[j]<tmin) tmin = mm.pcws[j];
-                if (mm.pcws[j]>tmax) tmax = mm.pcws[j];
-
-            }
-
-            int ip = mm.getdirection(xp.vx, xp.vy, xp.vz); // direction
-
-            for (int j = 0; j < mm.pcws.length; j++) {
-
-                mm.pcws[j] = (tmax-tmin> Float.MIN_VALUE)? ((mm.pcws[j]-tmin)/(tmax-tmin)) : 0 ;
-                mm.pcws[j] = (float) (Math.pow(mm.pcws[j],weight_deg) * mm.w[ip][j]); //
-                mm.pcws[j] = ((j==0)? mm.pcws[j] : (mm.pcws[j]+mm.pcws[j-1]));
-
-            }
-
-            if (mm.pcws[mm.pcws.length-1]<=Float.MIN_VALUE) continue;
-
-            float wmass = mm.pcws[mm.pcws.length-1];
-            float u1 = (wmass/ni)  * rndgen.nextFloat();
-
-            int s = 0;
-
-            ArrayList<X> xpick = new ArrayList<X>();
-
-            for (int j = 0; j < ni; j++) {
-
-                float uj = u1 + j * (wmass/ni);
-
-                while (uj>mm.pcws[s] & s<mm.pcws.length-1) s++;
-
-                // add s-th
-                xj = xi + mm.p[s][0];
-                yj = yi + mm.p[s][1];
-                zj = zi + mm.p[s][2];
-
-                if (xj>=0 && xj<N && yj>=0 && yj<M && zj>=0 && zj<P) {
-
-                    ii = zj*(N*M)+yj*N+xj;
-
-                    tnessval = tness[ii];
-
-                    if (suppmap[ii]==0) {
-                        particle = new X(xj,yj,zj,   mm.u[s][0],mm.u[s][1],mm.u[s][2], 99, tnessval);
-                        particle.tag = xp.tag;
-                        xpick.add(particle);
-                    }
-                    else {
-                        IJ.log("wanted to pick one with suppmapp>0");
-                    }
-
-                }
-
-            }
-
-            // add once it is clear how many there are
-            for (int j = 0; j < xpick.size(); j++) {
-                xpick.get(j).w = pS * xp.w * (1f/xpick.size());
-                XPk.add(xpick.get(j));
-                if (XPk_cws.size()==0)  XPk_cws.add(xpick.get(j).w);
-                else                    XPk_cws.add(xpick.get(j).w + XPk_cws.get(XPk_cws.size()-1));
-            }
-
-        } // go through Xk PHD particles
-
-        if (verbose) IJ.log("|XPk|= "+XPk.size());
-
-        if (XPk.size()==0) {
-            IJ.log("XPk.size()==0");
-            return false;
-        }
-
-        //** measure **//
-        Zk.clear();
-        Zk.trimToSize();
-        Zk_cnt.clear();
-
-        measure(XPk, kernel_radius, N, M, P, tness, Zk, Zk_cnt, null); // suppmap   null
-
-        if (verbose) IJ.log("|Z|="+Zk.size());
-
-        if (Zk.size()==0) {
-            IJ.log("Zk.size()==0");
-            return false;
-        }
-
-        //** update **//
-        XPk_cws = update(XPk, Zk); // updated weights will be added to cws output
-
-        phdmass = XPk_cws.get(XPk_cws.size()-1);
-        if (verbose) IJ.log("PHD="  +IJ.d2s(phdmass,2));
-
-        if (Math.round(phdmass)<1) {
-            IJ.log("Math.round(phdmass)<1");
-            return false;
-        }
-
-        if (Math.round(phdmass)>OBJECT_LIMIT) {
-            IJ.log("LIMIT: Math.round(phdmass)>" + OBJECT_LIMIT);
-            phdmass = OBJECT_LIMIT;
-        }
-
-        int prevYsize = Y.size();
-        estimate(XPk, kernel_radius, suppmap, R_supp, N, M, P, Y); // final estimates
-        if (verbose) IJ.log("|Y|=" + (Y.size()-prevYsize));
-
-        npcles = Math.round(phdmass)*ro;
-        if (verbose) IJ.log("npcles="+npcles);
-        resample(XPk, XPk_cws, npcles, Xk);
-
-        return true;
-
-    }
-
     public boolean _iter1(int N, int M, int P, float[] tness, int[] suppmap) {
 
         String eventlog = "|X|="+ Xk.size() +" ";
 
+        //-----------------------------------------------------------------------------
         //*** prediction ***//
         int xi, yi, zi, xj, yj, zj, ii;
         float tnessval;
         X particle;
 
         XPk.clear();
-        XPk.trimToSize();
         XPk_cws.clear();
+        ZPk.clear();
+
+        ArrayList<X> zpick = new ArrayList<X>();
 
         for (int i = 0; i < Xk.size(); i++) {
 
             X xp = Xk.get(i);
 
+            if (Float.isNaN(xp.vx) || Float.isNaN(xp.vy) || Float.isNaN(xp.vz)) {IJ.log("Float.isNaN(xp.vx) || Float.isNaN(xp.vy) || Float.isNaN(xp.vz)=TRUE");}
+
             xi = Math.round(xp.x);
             yi = Math.round(xp.y);
             zi = Math.round(xp.z);
-
-            // it's necessary to have local min/max so that values are locally optimal
-            float tmin = Float.POSITIVE_INFINITY;
-            float tmax = Float.NEGATIVE_INFINITY;
-
-            Arrays.fill(mm._pcws, 0);
-
-            for (int j = 0; j < mm._pcws.length; j++) {
-
-                xj = xi + mm._p[j][0];
-                yj = yi + mm._p[j][1];
-                zj = zi + mm._p[j][2];
-                ii = zj*(N*M)+yj*N+xj;
-
-                mm._pcws[j] = (xj>=0 && xj<N && yj>=0 && yj<M && zj>=0 && zj<P)? tness[ii] : 0;
-
-                if (mm._pcws[j]<tmin) tmin = mm._pcws[j];
-                if (mm._pcws[j]>tmax) tmax = mm._pcws[j];
-
-            }
 
             int ip = mm.getdirection(xp.vx, xp.vy, xp.vz); // direction
-            for (int j = 0; j < mm._pcws.length; j++) {
 
-                mm._pcws[j] = (tmax-tmin> Float.MIN_VALUE)? ((mm._pcws[j]-tmin)/(tmax-tmin)) : 0 ;
-                mm._pcws[j] = (float) (Math.pow(mm._pcws[j],weight_deg) * mm._w[ip][j]);
-                mm._pcws[j] = (j==0)? mm._pcws[j] : (mm._pcws[j]+mm._pcws[j-1]);
+            //-----------------------------------------------------------------------------
+            Arrays.fill(mm.pcws, 0); // ZPk
 
-            }
-
-            if (mm._pcws[mm._pcws.length-1]<=Float.MIN_VALUE) {IJ.log("Xk["+i+"] had wmass "+mm._pcws[mm._pcws.length-1]); continue;}
-
-            float wmass = mm._pcws[mm._pcws.length-1];
-            float u1 = (wmass/ni)  * rndgen.nextFloat();
-
-            int s = 0;
-
-            ArrayList<X> xpick = new ArrayList<X>();
-
-            for (int j = 0; j < ni; j++) {
-
-                float uj = u1 + j * (wmass/ni);
-
-                while (uj>mm._pcws[s] && s<mm._pcws.length-1) s++;
-
-                // add s-th
-                xj = xi + mm._p[s][0];
-                yj = yi + mm._p[s][1];
-                zj = zi + mm._p[s][2];
-
-                if (xj>=0 && xj<N && yj>=0 && yj<M && zj>=0 && zj<P) {
-
-                    ii = zj*(N*M)+yj*N+xj;
-
-                    tnessval = tness[ii];
-                    // finally select those that were not suppressed (that don't overlap with previous particle trace)
-                    if (suppmap[ii]==0) {
-                        particle = new X(
-                                xj,yj,zj,
-                                mm._u[s][0],mm._u[s][1],mm._u[s][2],
-                                99, tnessval);
-                        particle.tag = xp.tag;
-                        xpick.add(particle);
-                    }
-
-                }
-
-            }
-
-            // add once it is clear how many there are
-            for (int j = 0; j < xpick.size(); j++) {
-                xpick.get(j).w = pS * xp.w * (1f/xpick.size());
-                XPk.add(xpick.get(j));
-                if (XPk_cws.size()==0)  XPk_cws.add(xpick.get(j).w);
-                else                    XPk_cws.add(xpick.get(j).w + XPk_cws.get(XPk_cws.size()-1));
-            }
-
-        } // go through Xk PHD particles
-
-        eventlog += "|XPk|= "+XPk.size()+" ";
-
-        if (XPk.size()==0) {
-            IJ.log("XPk.size()==0");
-            return false;
-        }
-
-        //** measure **//
-        Zk.clear();
-        Zk.trimToSize();
-        Zk_cnt.clear();
-
-        measure(XPk, kernel_radius, N, M, P, tness, Zk, Zk_cnt, null);
-
-        eventlog += "|Z|=" + Zk.size() + " ";
-
-        if (Zk.size()==0) {
-            IJ.log("Zk.size()==0");
-            return false;
-        }
-
-        //** update **//
-        XPk_cws = update(XPk, Zk); // updated weights will be added to cws output
-
-        phdmass = XPk_cws.get(XPk_cws.size()-1);
-
-        eventlog += "PHD="  +IJ.d2s(phdmass,2) + " ";
-
-        if (Math.round(phdmass)<1) {
-            IJ.log("Math.round(phdmass)<1");
-            return false;
-        }
-
-        if (Math.round(phdmass)>OBJECT_LIMIT) {
-            IJ.log("LIMIT: Math.round(phdmass)>" + OBJECT_LIMIT);
-            phdmass = OBJECT_LIMIT;
-        }
-
-        int prevYsize = Y.size();
-        estimate(XPk,kernel_radius,suppmap,R_supp,N,M,P,Y);
-
-        eventlog += "|Y|=" + (Y.size()-prevYsize)+" ";
-
-        npcles = Math.round(phdmass)*ro;
-
-        resample(XPk, XPk_cws, npcles, Xk);
-
-        if (verbose) IJ.log(eventlog);
-
-        return true;
-
-    }
-
-    public boolean iter0(int N, int M, int P, float[] tness, int[] suppmap) {
-
-        if (verbose) IJ.log("|X|="+Xk.size());
-        //*** prediction ***//
-        int xi, yi, zi, xj, yj, zj, ii;
-        float tnessval;
-        X particle;
-
-        XPk.clear();
-        XPk.trimToSize();
-        XPk_cws.clear();
-
-        for (int i = 0; i < Xk.size(); i++) {
-
-            X xp = Xk.get(i);
-
-            xi = Math.round(xp.x);
-            yi = Math.round(xp.y);
-            zi = Math.round(xp.z);
-
-            // it's necessary to have local min/max so that values are locally optimal
             float tmin = Float.POSITIVE_INFINITY;
             float tmax = Float.NEGATIVE_INFINITY;
 
-            Arrays.fill(mm.pcws, 0);
-            for (int j = 0; j < mm.pcws.length; j++) {
-
+            for (int j = 0; j < mm.sz; j++) {
                 xj = xi + mm.p[j][0];
                 yj = yi + mm.p[j][1];
                 zj = zi + mm.p[j][2];
                 ii = zj*(N*M)+yj*N+xj;
 
-                mm.pcws[j] = (xj>=0 && xj<N && yj>=0 && yj<M && zj>=0 && zj<P)? tness[ii] : 0;
+                mm.pcws[j] = (xj>=0 && xj<N && yj>=0 && yj<M && zj>=0 && zj<P)? tness[ii] : 0; // && suppmap[ii]==0
 
                 if (mm.pcws[j]<tmin) tmin = mm.pcws[j];
                 if (mm.pcws[j]>tmax) tmax = mm.pcws[j];
-
             }
 
-            for (int j = 0; j < mm.pcws.length; j++) {
-
-                mm.pcws[j] = (tmax-tmin> Float.MIN_VALUE)? ((mm.pcws[j]-tmin)/(tmax-tmin)) : 0 ;
-                mm.pcws[j] = (float) (Math.pow(mm.pcws[j],weight_deg) * 1f); // mm.w0[j]
-                mm.pcws[j] = ((j==0)? mm.pcws[j] : (mm.pcws[j]+mm.pcws[j-1]));
-
+            float tsum = 0;
+            for (int j = 0; j < mm.sz; j++) {
+                mm.pcws[j] = (tmax-tmin> Float.MIN_VALUE)? ((mm.pcws[j]-tmin)/(tmax-tmin)) : (1f/mm.sz);
+                mm.pcws[j] = (float) (Math.pow(mm.pcws[j],weight_deg) * mm.w[ip][j]);
+                tsum += mm.pcws[j];
             }
 
-            if (mm.pcws[mm.pcws.length-1]<=Float.MIN_VALUE) continue;
+            if (tsum<=Float.MIN_VALUE) continue; // go to the next Xk particle predictions
 
-            float wmass = mm.pcws[mm.pcws.length-1];
+            for (int j = 0; j < mm.sz; j++) {
+                mm.pcws[j] = (mm.pcws[j]/tsum) + ((j==0)? 0 : mm.pcws[j-1]);
+            }
+
+            //** ZPk particles **//
+            float wmass = mm.pcws[mm.sz-1];
+//            IJ.log("check wmass 2 : " + wmass);
             float u1 = (wmass/ni)  * rndgen.nextFloat();
 
             int s = 0;
 
-            ArrayList<X> xpick = new ArrayList<X>();
+            zpick.clear();
 
-            for (int j = 0; j < ni; j++) {
+            for (int j = 0; j < ni; j++) { // predict ni ZPk from each Xk particle
 
                 float uj = u1 + j * (wmass/ni);
 
-                while (uj>mm.pcws[s] && s<=mm.pcws.length-1) s++;
+                while (uj>mm.pcws[s] && s<mm.sz-1) s++;
 
-                // add s-th
-                xj = xi + mm.p[s][0];
+                xj = xi + mm.p[s][0]; // add s-th
                 yj = yi + mm.p[s][1];
                 zj = zi + mm.p[s][2];
 
@@ -1170,147 +891,70 @@ public class MultiTT {
                     ii = zj*(N*M)+yj*N+xj;
 
                     tnessval = tness[ii];
-
-                    if (suppmap[ii]==0) { // finally select those that were not suppressed
-                        particle = new X(xj,yj,zj,   mm.u[s][0],mm.u[s][1],mm.u[s][2],    99, tnessval);// 1,1,
-                        particle.tag = xp.tag;
-                        xpick.add(particle);
-                    }
-//                    else {
-//                        IJ.log("wanted to pick one with suppmapp>0");
+                    // finally select those that were not suppressed (that don't overlap with previous particle trace)
+//                    if (suppmap[ii]==0) {
+                    particle = new X(xj,yj,zj, mm.u[s][0],mm.u[s][1],mm.u[s][2], 1f, tnessval);
+                    particle.tag = xp.tag;
+                    zpick.add(particle);
 //                    }
-
                 }
-
             }
 
             // add once it is clear how many there are
-            for (int j = 0; j < xpick.size(); j++) {
-                xpick.get(j).w = pS * xp.w * (1f/xpick.size());
-                XPk.add(xpick.get(j));
-                if (XPk_cws.size()==0)  XPk_cws.add(xpick.get(j).w);
-                else                    XPk_cws.add(xpick.get(j).w + XPk_cws.get(XPk_cws.size()-1));
+            for (int j = 0; j < zpick.size(); j++) {
+                ZPk.add(zpick.get(j));
             }
 
-        } // go through Xk PHD particles
+            //-----------------------------------------------------------------------------
+            Arrays.fill(mm.pcws, 0); // XPk
 
-        if (verbose) IJ.log("|XPk|= "+XPk.size());
+            tmin = Float.POSITIVE_INFINITY;
+            tmax = Float.NEGATIVE_INFINITY;
 
-        if (XPk.size()==0) {
-            IJ.log("XPk.size()==0");
-            return false;
-        }
-
-        //** measure **//
-        Zk.clear();
-        Zk.trimToSize();
-        Zk_cnt.clear();
-
-        measure(XPk, kernel_radius, N, M, P, tness, Zk, Zk_cnt, null); // suppmap   null
-
-        if (verbose) IJ.log("|Z|="+Zk.size());
-
-        if (Zk.size()==0) {
-            IJ.log("Zk.size()==0");
-            return false;
-        }
-
-        //** update **//
-        XPk_cws = update(XPk, Zk); // updated weights will be added to cws output
-
-        phdmass = XPk_cws.get(XPk_cws.size()-1);
-        if (verbose) IJ.log("PHD="  +IJ.d2s(phdmass,2));
-
-        if (Math.round(phdmass)<1) {
-            IJ.log("Math.round(phdmass)<1");
-            return false;
-        }
-
-        if (Math.round(phdmass)>OBJECT_LIMIT) {
-            IJ.log("LIMIT: Math.round(phdmass)>" + OBJECT_LIMIT);
-            phdmass = OBJECT_LIMIT;
-        }
-
-        int prevYsize = Y.size();
-        estimate(XPk, kernel_radius, suppmap, R_supp, N, M, P, Y); // final estimates
-        if (verbose) IJ.log("|Y|=" + (Y.size()-prevYsize));
-
-        npcles = Math.round(phdmass)*ro;
-        if (verbose) IJ.log("npcles="+npcles);
-        resample(XPk, XPk_cws, npcles, Xk);
-
-        return true;
-
-    }
-
-    public boolean _iter0(int N, int M, int P, float[] tness, int[] suppmap) {
-
-        String eventlog = "|X|="+ Xk.size() +" ";
-
-        //*** prediction ***//
-        int xi, yi, zi, xj, yj, zj, ii;
-        float tnessval;
-        X particle;
-
-        XPk.clear();
-        XPk.trimToSize();
-        XPk_cws.clear();
-
-        for (int i = 0; i < Xk.size(); i++) {
-
-            X xp = Xk.get(i);
-
-            xi = Math.round(xp.x);
-            yi = Math.round(xp.y);
-            zi = Math.round(xp.z);
-
-            // it's necessary to have local min/max so that values are locally optimal
-            float tmin = Float.POSITIVE_INFINITY;
-            float tmax = Float.NEGATIVE_INFINITY;
-
-            Arrays.fill(mm._pcws, 0);
-
-            for (int j = 0; j < mm._pcws.length; j++) {
-
-                xj = xi + mm._p[j][0];
-                yj = yi + mm._p[j][1];
-                zj = zi + mm._p[j][2];
+            for (int j = 0; j < mm.sz; j++) {
+                xj = xi + mm.p[j][0];
+                yj = yi + mm.p[j][1];
+                zj = zi + mm.p[j][2];
                 ii = zj*(N*M)+yj*N+xj;
 
-                mm._pcws[j] = (xj>=0 && xj<N && yj>=0 && yj<M && zj>=0 && zj<P)? tness[ii] : 0;
+                mm.pcws[j] = (xj>=0 && xj<N && yj>=0 && yj<M && zj>=0 && zj<P)? tness[ii] : 0; // && suppmap[ii]==0
 
-                if (mm._pcws[j]<tmin) tmin = mm._pcws[j];
-                if (mm._pcws[j]>tmax) tmax = mm._pcws[j];
-
+                if (mm.pcws[j]<tmin) tmin = mm.pcws[j];
+                if (mm.pcws[j]>tmax) tmax = mm.pcws[j];
             }
 
-            for (int j = 0; j < mm._pcws.length; j++) {
-
-                mm._pcws[j] = (tmax-tmin> Float.MIN_VALUE)? ((mm._pcws[j]-tmin)/(tmax-tmin)) : 0 ;
-                mm._pcws[j] = (float) (Math.pow(mm._pcws[j],weight_deg) * mm._w0[j]);
-                mm._pcws[j] = (j==0)? mm._pcws[j] : (mm._pcws[j]+mm._pcws[j-1]);
-
+            tsum = 0;
+            for (int j = 0; j < mm.sz; j++) {
+                mm.pcws[j] = (tmax-tmin> Float.MIN_VALUE)? ((mm.pcws[j]-tmin)/(tmax-tmin)) : (1f/mm.sz);
+                mm.pcws[j] = (float) (Math.pow(mm.pcws[j],weight_deg) * mm.w[ip][j]);
+                tsum += mm.pcws[j];
             }
 
-            if (mm._pcws[mm._pcws.length-1]<=Float.MIN_VALUE) {IJ.log("Xk["+i+"] had wmass "+mm._pcws[mm._pcws.length-1]); continue;}
+            if (tsum<=Float.MIN_VALUE) continue; // go to the next Xk particle
 
-            float wmass = mm._pcws[mm._pcws.length-1];
-            float u1 = (wmass/ni)  * rndgen.nextFloat();
+            for (int j = 0; j < mm.sz; j++) {
+                mm.pcws[j] = (mm.pcws[j]/tsum) + ((j==0)? 0 : mm.pcws[j-1]);
+            }
 
-            int s = 0;
+            //** XPk particles **//
+            wmass = mm.pcws[mm.sz-1];
+//            IJ.log("check wmass 1 : " + wmass);
+            u1 = (wmass/ni)  * rndgen.nextFloat();
+
+            s = 0;
 
             ArrayList<X> xpick = new ArrayList<X>();
+            xpick.clear();
 
-            for (int j = 0; j < ni; j++) {
+            for (int j = 0; j < ni; j++) { // predict ni XPk from each Xk particle
 
                 float uj = u1 + j * (wmass/ni);
 
-                while (uj>mm._pcws[s] && s<mm._pcws.length-1) s++;
+                while (uj>mm.pcws[s] && s<mm.sz-1) s++;
 
-                // add s-th
-                xj = xi + mm._p[s][0];
-                yj = yi + mm._p[s][1];
-                zj = zi + mm._p[s][2];
+                xj = xi + mm.p[s][0]; // add s-th
+                yj = yi + mm.p[s][1];
+                zj = zi + mm.p[s][2];
 
                 if (xj>=0 && xj<N && yj>=0 && yj<M && zj>=0 && zj<P) {
 
@@ -1318,22 +962,19 @@ public class MultiTT {
 
                     tnessval = tness[ii];
                     // finally select those that were not suppressed (that don't overlap with previous particle trace)
-                    if (suppmap[ii]==0) {
-                        particle = new X(
-                                xj,yj,zj,
-                                mm._u[s][0],mm._u[s][1],mm._u[s][2],
-                                99, tnessval);
-                        particle.tag = xp.tag;
-                        xpick.add(particle);
-                    }
-
+//                    if (suppmap[ii]==0) {
+                    particle = new X(xj,yj,zj, mm.u[s][0],mm.u[s][1],mm.u[s][2], 1f, tnessval);
+                    particle.tag = xp.tag;
+                    xpick.add(particle);
+//                    }
                 }
-
             }
 
             // add once it is clear how many there are
             for (int j = 0; j < xpick.size(); j++) {
                 xpick.get(j).w = pS * xp.w * (1f/xpick.size());
+                if (Float.isNaN(xpick.get(j).vx) || Float.isNaN(xpick.get(j).vy) || Float.isNaN(xpick.get(j).vz))
+                {IJ.log("Float.isNaN(xpick.get(j).vx) || Float.isNaN(xpick.get(j).vy) || Float.isNaN(xpick.get(j).vz)=TRUE");}
                 XPk.add(xpick.get(j));
                 if (XPk_cws.size()==0)  XPk_cws.add(xpick.get(j).w);
                 else                    XPk_cws.add(xpick.get(j).w + XPk_cws.get(XPk_cws.size()-1));
@@ -1341,52 +982,45 @@ public class MultiTT {
 
         } // go through Xk PHD particles
 
-        eventlog += "|XPk|= "+XPk.size()+" ";
+        eventlog += "|XPk|= "+XPk.size()+" ";//+ "  XPk_cws[end]="+XPk_cws.get(XPk_cws.size()-1)+"  ZPk.size()="+ZPk.size()+"  ";
 
-        if (XPk.size()==0) {
-            IJ.log("XPk.size()==0");
-            return false;
-        }
+        if (XPk.size()==0) {IJ.log("XPk.size()==0"); return false;}
+        if (ZPk.size()==0) {IJ.log("ZPk.size()==0"); return false;}
 
+        //-----------------------------------------------------------------------------
         //** measure **//
         Zk.clear();
-        Zk.trimToSize();
-        Zk_cnt.clear();
-
-        measure(XPk, kernel_radius, N, M, P, tness, Zk, Zk_cnt, null);
-
+        measure(ZPk, kernel_radius, Y, N, M, tness, suppmap, Zk);
         eventlog += "|Z|=" + Zk.size() + " ";
 
-        if (Zk.size()==0) {
-            IJ.log("Zk.size()==0");
-            return false;
-        }
+        if (Zk.size()==0) {IJ.log("Zk.size()==0"); return false;}
 
         //** update **//
         XPk_cws = update(XPk, Zk); // updated weights will be added to cws output
 
-        phdmass = XPk_cws.get(XPk_cws.size()-1);
+        phdmass = XPk_cws.get(XPk_cws.size()-1); eventlog += "PHD="  +IJ.d2s(phdmass,2) + " ";
 
-        eventlog += "PHD="  +IJ.d2s(phdmass,2) + " ";
-
-        if (Math.round(phdmass)<1) {
-            IJ.log("Math.round(phdmass)<1");
-            return false;
-        }
-
-        if (Math.round(phdmass)>OBJECT_LIMIT) {
-            IJ.log("LIMIT: Math.round(phdmass)>" + OBJECT_LIMIT);
-            phdmass = OBJECT_LIMIT;
-        }
+        if (Math.round(phdmass)<1) {IJ.log("Math.round(phdmass)<1"); return false;}
+        if (Math.round(phdmass)>OBJECT_LIMIT) {IJ.log("#OBJ. LIMIT : Math.round(phdmass)>" + OBJECT_LIMIT); phdmass = OBJECT_LIMIT;}
 
         int prevYsize = Y.size();
-        estimate(XPk,kernel_radius,suppmap,R_supp,N,M,P,Y);
+
+        //** estimate **//
+        ArrayList<X> Rk = new ArrayList<X>();
+        ArrayList<Float> Rcws = new ArrayList<Float>();  // XPk subsets used in the estimation
+        est(XPk, kernel_radius, MIN_CLUST_SIZE, Integer.MAX_VALUE, wmin, N, M, suppmap, Y, Rk, Rcws);
+
+        if (Rk.size()==0) {IJ.log("Rk.size()==0"); return false;}
 
         eventlog += "|Y|=" + (Y.size()-prevYsize)+" ";
 
+        //** resample **//
         npcles = Math.round(phdmass)*ro;
+        resample(Rk, Rcws, npcles, phdmass/(float)npcles, Xk);
 
-        resample(XPk, XPk_cws, npcles, Xk);
+        // now fill out the suppmap[] knowing XPk, Rk and Xk in the same way it was filled in est(),
+        // est() needs one more output ArrayList<Integer> with Y node indexes of each Rk
+        // apply current XPk to the suppmap
 
         if (verbose) IJ.log(eventlog);
 
@@ -1394,40 +1028,46 @@ public class MultiTT {
 
     }
 
-    private void measure(ArrayList<X> x, float dist, int N, int M, int P, float[] tness, ArrayList<X> z, ArrayList<Integer> count, int[] suppmap) {
+    private void measure(
+            ArrayList<X> zp,
+            float dist,
+            ArrayList<Node> Yprev,
+            int N, int M, //int P,
+            float[] tness,
+            int[] suppmap,
+            ArrayList<X> zout//,
+            //ArrayList<ArrayList<Integer>> zc
+    ) {
 
-//        long t1, t2;
-//        t1 = System.currentTimeMillis();
-//        float[] xw = new float[x.size()];
         float gauss_limit = 3*dist;
         Arrays.fill(xw, 0);
 
-        for (int i = 0; i < x.size(); i++) {
+        for (int i = 0; i < zp.size(); i++) {
 
-            for (int j = i; j < x.size(); j++) {
+            for (int j = i; j < zp.size(); j++) {
 
                 if (i==j) {
 
-                    xw[i] += x.get(i).tness; // use tness instead of weight x.get(i).w
+                    xw[i] += zp.get(i).tness; // use tness instead of weight x.get(i).w
 
                 }
                 else {
 
-                    float d2 = (float) Math.pow(x.get(i).x - x.get(j).x, 2);
+                    float d2 = (float) Math.pow(zp.get(i).x - zp.get(j).x, 2);
 
                     if (d2 < Math.pow(gauss_limit,2)) {
 
-                        d2 += Math.pow(x.get(i).y - x.get(j).y,2);
+                        d2 += Math.pow(zp.get(i).y - zp.get(j).y,2);
 
                         if (d2 < Math.pow(gauss_limit,2)) {
 
-                            d2 += Math.pow(x.get(i).z - x.get(j).z,2);
+                            d2 += Math.pow(zp.get(i).z - zp.get(j).z,2);
 
                             if (d2 < Math.pow(gauss_limit,2)) {
 
                                 float dcost = (float) Math.exp(-d2/(2*Math.pow(dist,2)));
-                                xw[i] += x.get(j).tness * dcost; // x.get(j).w
-                                xw[j] += x.get(i).tness * dcost; // x.get(i).w
+                                xw[i] += zp.get(j).tness * dcost; // x.get(j).w
+                                xw[j] += zp.get(i).tness * dcost; // x.get(i).w
 
                             }
 
@@ -1440,106 +1080,321 @@ public class MultiTT {
             }
 
         }
-//        t2 = System.currentTimeMillis();
-//        IJ.log("wieghts "+IJ.d2s((t2-t1)/1000f,2));
 
-//        t1 = System.currentTimeMillis();
-//        float[][] conv =
-        Arrays.fill(xw, 1);
-        meanShift(x, xw, dist); // conv will be filled up, dist is used for convergence here
-//        t2 = System.currentTimeMillis();
-//        IJ.log("convergence "+IJ.d2s((t2-t1)/1000f,2));
-
-//        t1 = System.currentTimeMillis();
-//        int[] lab =
-        clustering(x.size(), 2f);
-//        t2 = System.currentTimeMillis();
-//        IJ.log("clustering "+IJ.d2s((t2-t1)/1000f,2));
-//
-//        t1 = System.currentTimeMillis();
-        extract(x.size(), MIN_CLUST, Integer.MAX_VALUE, N, M, P, tness, z, count, suppmap); // extract() uses convergence values
-//        t2 = System.currentTimeMillis();
-//        IJ.log("extraction "+IJ.d2s((t2-t1)/1000f,2));
+        meanShift(zp, xw, dist);     // conv filled up
+        clustering(zp.size(), 2f);   // labels filled up, nbridxs filled up
+        group_measurement(zp, zp.size(), MIN_CLUST_SIZE, Integer.MAX_VALUE, Yprev, N, M, tness, suppmap, zout); // zc
 
     }
 
-    private void extract(int xlen, int count_min, int nclust_max, int N, int M, int P, float[] tness, ArrayList<X> xout, ArrayList<Integer> xcount, int[] suppmap) {
+    private void group_measurement(
+            ArrayList<X> zp,
+            int zpLen,
+            int nclust_min,
+            int nclust_max,
+            ArrayList<Node> Yprev,
+            int N, int M,
+            float[] tness,
+            int[] suppmap,
+            ArrayList<X> z//,
+//            ArrayList<ArrayList<Integer>> zc
+    ) {
 
-//        boolean[] checked = new boolean[labels.length];
-
+        // no need for estimation of the centroid, conv[][] is not used, meanShift() has clustering role
         Arrays.fill(checked, false);
 
-        ArrayList<X> xclust = new ArrayList<X>();
-        ArrayList<Integer> cnt = new ArrayList<Integer>();
+        for (int i = 0; i < ZPCk.size(); i++) ZPCk.get(i).clear();
+        ZPCk.clear();
 
-        for (int i = 0; i < xlen; i++) {
+        ArrayList<Integer> cnt = new ArrayList<Integer>(); // only used for sorting
+
+        for (int i = 0; i < zpLen; i++) {
 
             if (!checked[i]) {
-
-                float cx2  = conv[i][0];
-                float cy2  = conv[i][1];
-                float cz2  = conv[i][2];
-
-                int count = 1;
                 checked[i] = true;
 
-                // check the rest
-                for (int j = i+1; j < xlen; j++) {
+                ArrayList<Integer> clsidxs = new ArrayList<Integer>();
+                clsidxs.add(i);
+                boolean notSupp = suppmap[Math.round(zp.get(i).z)*(N*M)+Math.round(zp.get(i).y)*N+Math.round(zp.get(i).x)]==0;
+
+                for (int j = i+1; j < zpLen; j++) { // check the rest
                     if (!checked[j] && labels[j]==labels[i]) {
-
-                        cx2 += conv[j][0];
-                        cy2 += conv[j][1];
-                        cz2 += conv[j][2];
-
-                        count++;
                         checked[j] = true;
-
+                        clsidxs.add(j);
+                        notSupp = notSupp || (suppmap[Math.round(zp.get(j).z)*(N*M)+Math.round(zp.get(j).y)*N+Math.round(zp.get(j).x)]==0);
                     }
                 }
 
-                if (count >= count_min) {
-                    xclust.add(new X(cx2/count, cy2/count, cz2/count, Float.NaN, Float.NaN, Float.NaN, 1f, Float.NaN)); // 1f, Float.NaN,
-                    cnt.add(count);
+                if (clsidxs.size()>=nclust_min  && notSupp) { // cluster had enough samples and at least one that did not overlap with suppmap[]
+                    cnt.add(clsidxs.size());
+                    ZPCk.add(clsidxs);
                 }
             }
         }
 
-        int[] desc_idx = Tools.descending(cnt); // cnt will be modified too
+        // sort clusters by the amount of particles in the cluster
+        int[] desc_idx = Tools.descending(cnt); // cnt will be modified too todo: not necessary really
 
-        xout.clear();
-        xcount.clear();
+        ArrayList<Float> zsc        = new ArrayList<Float>(ZPCk.size());        // score per cluster
+        ArrayList<Integer> zsc_idx  = new ArrayList<Integer>(ZPCk.size());  // selected index per cluster
 
-        for (int ii=0; ii<Math.min(nclust_max,xclust.size()); ii++) {
+        for (int ii=0; ii<Math.min(nclust_max,ZPCk.size()); ii++) {
 
-            int x = Math.round(xclust.get(desc_idx[ii]).x);
-            int y = Math.round(xclust.get(desc_idx[ii]).y);
-            int z = Math.round(xclust.get(desc_idx[ii]).z);
+            int ci = desc_idx[ii]; // go from the highest, take cluster index
 
-            if (x>=0 && x<N && y>=0 && y<M && z>=0 && z<P) {
+            float sc = Float.POSITIVE_INFINITY;
+            int sc_idx = -1;
 
-                if (suppmap==null || suppmap[z*(N*M)+y*(N)+x]==0) {
+            for (int i = 0; i < ZPCk.get(ci).size(); i++) { // go through elements of one cluster, there should be at least one that's not overlapping with suppmap[]
 
-                    // add observation if it is not marked by the suppression map
-                    X xtt = new X(xclust.get(desc_idx[ii]));
-                    xtt.tness = tness[z*(N*M)+y*(N)+x];
+                int xii = ZPCk.get(ci).get(i);
+                X xi = zp.get(xii);
 
-                    xout.add(xtt);
-                    xcount.add(cnt.get(ii));
+                if (suppmap[Math.round(xi.z)*(N*M)+Math.round(xi.y)*N+Math.round(xi.x)]==0) { // should happen at least once
 
-                }
+                    float a1x = Yprev.get(xi.tag).loc[0];
+                    float a1y = Yprev.get(xi.tag).loc[1];
+                    float a1z = Yprev.get(xi.tag).loc[2];
 
-            }
+                    float a2x = xi.x;
+                    float a2y = xi.y;
+                    float a2z = xi.z;
 
-            // add tness value to z
-//            int x = Math.round(xtt.x);
-//            int y = Math.round(xtt.y);
-//            int z = Math.round(xtt.z);
+                    float score = 0;
 
+                    for (int j = 0; j < ZPCk.get(ci).size(); j++) {
+                        if (j!=i) {
+
+                            X xj = zp.get(ZPCk.get(ci).get(j));
+
+                            float a0x = xj.x;
+                            float a0y = xj.y;
+                            float a0z = xj.z;
+
+                            score += d2(a1x, a1y, a1z, a2x, a2y, a2z, a0x, a0y, a0z);
+
+                        }
+                    }
+
+                    if (score<sc) {
+                        sc = score;   // update score
+                        sc_idx = xii; // update index
+                    }
+                } // if it was not overlapping
+            } // loop cluster
+
+            zsc.add(sc);
+            zsc_idx.add(sc_idx);
+
+        } // loop clusters
+
+        if (zsc.size()==0) { // stop without extracting z
+            return;
+        }
+
+        // store the sampled observations into z, those that had clusters with at least one not on the suppmap (XPk subset used to get Y fills the suppmap)
+        z.clear();
+
+        for (int i = 0; i < zsc_idx.size(); i++) {
+
+            int x_Z = Math.round(zp.get( zsc_idx.get(i) ).x);
+            int y_Z = Math.round(zp.get( zsc_idx.get(i) ).y);
+            int z_Z = Math.round(zp.get( zsc_idx.get(i) ).z);
+
+            X xtt = new X(zp.get(zsc_idx.get(i)));
+            xtt.tness = tness[z_Z*(N*M)+y_Z*(N)+x_Z];
+            z.add(xtt);
+
+//            if (x_Z>=0 && x_Z<N && y_Z>=0 && y_Z<M && z_Z>=0 && z_Z<P)
+//                if (suppmap[z_Z*(N*M)+y_Z*(N)+x_Z]==0 || true)
         }
 
     }
 
-    private float estimate(ArrayList<X> x, float dist, int[] suppmap, int rsupp, int N, int M, int P, ArrayList<Node> y) {
+    private float d2(
+            float a1x, float a1y, float a1z,
+            float a2x, float a2y, float a2z,
+            float a0x, float a0y, float a0z
+            ) {
+
+        float a21x = a2x-a1x;
+        float a21y = a2y-a1y;
+        float a21z = a2z-a1z;
+
+        float a01x = a0x-a1x;
+        float a01y = a0y-a1y;
+        float a01z = a0z-a1z;
+
+        float a02x = a0x-a2x;
+        float a02y = a0y-a2y;
+        float a02z = a0z-a2z;
+
+        // d2=0 if it is outside
+        if (a21x*a01x+a21y*a01y+a21z*a01z<=0)
+            return (a01x*a01x+a01y*a01y+a01z*a01z);//Float.POSITIVE_INFINITY;
+        if ((-a21x)*a02x+(-a21y)*a02y+(-a21z)*a02z<=0)
+            return (a02x*a02x+a02y*a02y+a02z*a02z);//Float.POSITIVE_INFINITY;
+
+//        return 1;
+
+        // point to line distance 3D
+        // http://mathworld.wolfram.com/Point-LineDistance3-Dimensional.html
+
+        float a10x = a1x-a0x;
+        float a10y = a1y-a0y;
+        float a10z = a1z-a0z;
+
+        float[] a21_x_a10 = new float[3]; // this can be a global variable
+
+        crossprod(a21x, a21y, a21z, a10x, a10y, a10z, a21_x_a10);
+
+        return (float) (
+                (Math.pow(a21_x_a10[0],2)+Math.pow(a21_x_a10[1],2)+Math.pow(a21_x_a10[2],2)) / ((a21x*a21x)+(a21y*a21y)+(a21z*a21z))
+        );
+
+    }
+
+    private void crossprod(float a1, float a2, float a3, float b1, float b2, float b3, float[] v) {
+        // v is cross product of (a1, a2, a3) and (b1, b2, b3)
+        v[0] = a2*b3 - b2*a3;
+        v[1] = -(a1*b3-b1*a3);
+        v[2] = a1*b2-b1*a2;
+    }
+
+    private void estimate(
+            ArrayList<ArrayList<Integer>> xg,       // clusters of the particle indexes
+            ArrayList<X> x,                         //
+            int N,
+            int M,
+            int P,
+            int[] suppmap,
+            ArrayList<X> Gk,                        // output select particles that are clustered (in xg) and not suppressed
+            ArrayList<Float> Gcws,                  // output cumulative weight sum
+            ArrayList<Node> nout                    // output node list with estimations
+    ) {
+
+        Gk.clear();
+        Gcws.clear();
+
+        for (int i = 0; i < xg.size(); i++) {
+
+            float wsum = 0, cx=0, cy=0, cz=0;
+            ArrayList<Integer> tags = new ArrayList<Integer>();
+
+            for (int j = 0; j < xg.get(i).size(); j++) {
+
+                int xii = xg.get(i).get(j);
+
+                wsum += x.get(xii).w;
+                cx += x.get(xii).x * x.get(xii).w;
+                cy += x.get(xii).y * x.get(xii).w;
+                cz += x.get(xii).z * x.get(xii).w;
+
+                tags.add(x.get(xii).tag);
+
+            }
+
+            if (wsum>Float.MIN_VALUE) { // updated weights of the cluster should not sum up to 0
+
+                cx /= wsum;
+                cy /= wsum;
+                cz /= wsum;
+
+                // remove duplicate tags
+                Set<Integer> set = new HashSet<Integer>();
+                set.addAll(tags);
+                tags.clear();
+                tags.addAll(set);
+
+                Node nn = new Node(cx, cy, cz, 1f); // rr
+                int newtag = nout.size();
+                nout.add(nn);
+
+                for (int j = 0; j < tags.size(); j++) {
+                    nout.get(newtag).nbr.add(tags.get(j));
+                    nout.get(tags.get(j)).nbr.add(newtag);
+                }
+
+                // fill out the suppression map, go through the i-th cluster particle-indexes again
+                for (int j = 0; j < xg.get(i).size(); j++) {
+
+                    // assign new tag to the particles of the clusters from XPk
+                    x.get(xg.get(i).get(j)).tag = newtag;// XPk particle will get a tag that corresponds to the estimate
+
+                    int idx = xg.get(i).get(j);
+                    int x1 = Math.round(x.get(idx).x);
+                    int y1 = Math.round(x.get(idx).y);
+                    int z1 = Math.round(x.get(idx).z);
+
+                    if (x1>=0 && x1<N && y1>=0 && y1<M && z1>=0 && z1<P) {
+                        int idx1 = z1*(N*M)+y1*N+x1;
+                        if (suppmap[idx1]==0) {
+
+                            // *** add Gk and Gcws
+                            Gk.add(x.get(idx));
+
+                            if (Gcws.size()==0) Gcws.add(x.get(idx).w);
+                            else Gcws.add(x.get(idx).w + Gcws.get(Gcws.size() - 1));
+
+                            // ***
+                            suppmap[idx1] = newtag;
+
+                        }
+                    }
+
+
+
+
+
+                }
+
+
+
+            }
+            else {
+                IJ.log("cluster " + i + " was removed from xg, due to weight sum zero.");
+                xg.get(i).clear(); // cancel those that had weight sum 0 so that they are not used later, they won't get a new tag either
+            }
+
+        }
+
+        // cluster weighted phd particles using mean-shift and get the weighted mean out of each cluster
+//        float outcws = 0;
+//        for (int i = 0; i < x.size(); i++) {
+//            xw[i] = x.get(i).tness; // used to be w
+//            outcws += x.get(i).w;
+//        }
+//        meanShift(x, xw, dist);
+//        clustering(x.size(), 2f);
+//        group(x, MIN_CLUST, Integer.MAX_VALUE, suppmap, rsupp, N, M, P, y); // estimate() uses x phd particles
+//        return outcws;
+
+    }
+
+    private void est(
+            ArrayList<X> x,
+            float kradius,
+            int nclust_min,
+            int nclust_max,
+            float wmin,
+            int N,
+            int M,
+            int[] suppmap,
+            ArrayList<Node> y,
+            ArrayList<X> Rk,
+            ArrayList<Float> Rcws
+    ) {
+
+        // cluster weighted phd particles
+        for (int i = 0; i < x.size(); i++) {xw[i] = x.get(i).w;}
+
+        meanShift(x, xw, kradius);
+        clustering(x.size(), 2f);
+        group_estimate(x, nclust_min, nclust_max, wmin, N, M, suppmap, y, Rk, Rcws);
+
+    }
+
+    private float estimate(ArrayList<X> x, float dist, int[] suppmap, int N, int M, int P, ArrayList<Node> y) {
 
         // cluster weighted phd particles using mean-shift and get the weighted mean out of each cluster
         float outcws = 0;
@@ -1550,7 +1405,7 @@ public class MultiTT {
 
         meanShift(x, xw, dist);
         clustering(x.size(), 2f);
-        group(x, MIN_CLUST, Integer.MAX_VALUE, suppmap, rsupp, N, M, P, y); // estimate() uses x phd particles
+        group(x, 0, Integer.MAX_VALUE, suppmap, N, M, P, y); // estimate() uses x phd particles   rsupp
 
         return outcws;
     }
@@ -1743,15 +1598,14 @@ public class MultiTT {
 
     }
 
-    private void group(ArrayList<X> xin, int count_min, int nclust_max, int[] suppmap, int rsupp, int N, int M, int P, ArrayList<Node> nout) {
-
-//        boolean[] checked = new boolean[labels.length];
+    private void group(ArrayList<X> xin, int count_min, int nclust_max, int[] suppmap, int N, int M, int P, ArrayList<Node> nout) { // int rsupp,
 
         Arrays.fill(checked, false);
 
         float wsum, cx, cy, cz;
         ArrayList<Integer> tags = new ArrayList<Integer>();
         ArrayList<Integer> xidx = new ArrayList<Integer>();
+        int nr_clusters = 0;
 
         for (int i = 0; i < xin.size(); i++) {
 
@@ -1762,7 +1616,10 @@ public class MultiTT {
                 cy = xin.get(i).y * xin.get(i).tness; // w
                 cz = xin.get(i).z * xin.get(i).tness; // w
 
-                xidx.clear(); xidx.add(i);
+                nr_clusters++;
+
+                xidx.clear();
+                xidx.add(i);
 
                 tags.clear();
                 if (xin.get(i).tag>0)
@@ -1781,10 +1638,10 @@ public class MultiTT {
                         cy += xin.get(j).y * xin.get(j).tness; // w
                         cz += xin.get(j).z * xin.get(j).tness; // w
 
+                        xidx.add(j);
+
                         if (xin.get(j).tag>0)
                             tags.add(xin.get(j).tag);
-
-                        xidx.add(j);
 
                         count++;
                         checked[j] = true;
@@ -1792,13 +1649,14 @@ public class MultiTT {
                     }
                 }
 
-                if (wsum>Float.MIN_VALUE) {
+//                if (wsum>Float.MIN_VALUE) {
                     if (count >= count_min) {
+
+                        if (wsum>Float.MIN_VALUE) {
 
                         cx /= wsum;
                         cy /= wsum;
                         cz /= wsum;
-
 //                        float rr = 0;
 //                        for (int j = 0; j < xidx.size(); j++) {
 //                            float px = xin.get(xidx.get(j)).x;
@@ -1828,53 +1686,172 @@ public class MultiTT {
                             nout.get(tags.get(j)).nbr.add(newtag);
                         }
 
-                        // fill out the suppression map
-                        for (int j = 0; j < xidx.size(); j++) {
-
+                            for (int j = 0; j < xidx.size(); j++) {
                             // assign new tag to the particles of the cluster
                             xin.get(xidx.get(j)).tag = newtag;
 
-                            // suppression map filled using particles that make cluster tagged with newtag
-                            for (int k = 0; k < offxyz[rsupp].length; k++) {
+                                for (int k = 0; k < offxyz[R_supp].length; k++) {
 
-                                    int xi = Math.round(xin.get(xidx.get(j)).x) + offxyz[rsupp][k][0];
-                                    int yi = Math.round(xin.get(xidx.get(j)).y) + offxyz[rsupp][k][1];
-                                    int zi = Math.round(xin.get(xidx.get(j)).z) + offxyz[rsupp][k][2];
+                                    int xi = Math.round(xin.get(xidx.get(j)).x) + offxyz[R_supp][k][0];
+                                    int yi = Math.round(xin.get(xidx.get(j)).y) + offxyz[R_supp][k][1];
+                                    int zi = Math.round(xin.get(xidx.get(j)).z) + offxyz[R_supp][k][2];
 
                                     if (xi>=0 && xi<N && yi>=0 && yi<M && zi>=0 && zi<P) {
-
                                         int ii = zi*(N*M)+yi*N+xi;
-
-                                        if (suppmap[ii]<=0) suppmap[ii] = newtag;
-                                        else {
-                                            //nout.get(newtag).nbr.add(suppmap[ii]);
-                                            //nout.get(suppmap[ii]).nbr.add(newtag);
-                                        }
-
+                                        if (suppmap[ii]==0)
+                                            suppmap[ii] = newtag;
                                     }
+                                }
                             }
+
+
                         }
 
-                    }
-                    else {
-                        // not enough counts, set weights to 0 so that they're surely not resampled later on
-                        for (int j = 0; j < xidx.size(); j++) {
-                            xin.get(xidx.get(j)).w = 0;
-                            xin.get(xidx.get(j)).tag = 0;
-                        }
+                    } // count >= count_min
+//                    else {
+//                        IJ.log("cluster with  "+xidx.size()+" elements set w and ta to zero");
+//                        // not enough counts, set weights to 0 so that they're surely not resampled later on
+//                        for (int j = 0; j < xidx.size(); j++) {
+//                            xin.get(xidx.get(j)).w = 0;
+//                            xin.get(xidx.get(j)).tag = 0;
+//                        }
+//
+//                    }
 
-                    }
-
-                }
+//                }
 //                else {
                     //IJ.log("there was cluster with enough counts but zero wsum!"); // won't be resampled
 //                }
             }
         }
+    }
+
+    private void group_estimate(
+            ArrayList<X> xin,
+            int count_min,
+            int nclust_max,
+            float wmin,
+            int N,
+            int M,
+            int[] suppmap,
+            ArrayList<Node> nout,
+            ArrayList<X> Rk,
+            ArrayList<Float> Rcws
+    ) {
+
+        Rk.clear();
+        Rcws.clear();
+
+        Arrays.fill(checked, false);
+
+        float wsum, cx, cy, cz;
+        ArrayList<Integer> tags = new ArrayList<Integer>();
+        ArrayList<Integer> xidx = new ArrayList<Integer>();
+        int nr_clusters = 0;
+
+        for (int i = 0; i < xin.size(); i++) {
+
+//            suppmap[Math.round(xin.get(i).z)*(N*M)+Math.round(xin.get(i).y)*N+Math.round(xin.get(i).x)] = xin.get(i).tag;
+
+            if (!checked[i]) {
+
+                wsum = xin.get(i).w;
+                cx = xin.get(i).x * xin.get(i).w; // tness?
+                cy = xin.get(i).y * xin.get(i).w;
+                cz = xin.get(i).z * xin.get(i).w;
+
+                nr_clusters++;
+
+                xidx.clear();
+                xidx.add(i);
+
+                tags.clear();
+                if (xin.get(i).tag>0)
+                    tags.add(xin.get(i).tag);
+
+                int count = 1;
+                checked[i] = true;
+
+                // check the rest
+                for (int j = i+1; j < xin.size(); j++) {
+                    if (!checked[j] && labels[j]==labels[i]) {
+
+                        wsum += xin.get(j).w;
+
+                        cx += xin.get(j).x * xin.get(j).w;
+                        cy += xin.get(j).y * xin.get(j).w;
+                        cz += xin.get(j).z * xin.get(j).w;
+
+                        xidx.add(j);
+
+                        if (xin.get(j).tag>0)
+                            tags.add(xin.get(j).tag);
+
+                        count++;
+                        checked[j] = true;
+
+                    }
+                }
+
+                if (count>=count_min) {
+
+                    if (wsum>=wmin) {
+
+                        cx /= wsum;
+                        cy /= wsum;
+                        cz /= wsum;
+
+                        Set<Integer> set = new HashSet<Integer>();
+                        set.addAll(tags);
+                        tags.clear();
+                        tags.addAll(set);
+
+                        //** add the node **//
+                        Node nn = new Node(cx, cy, cz, 1f); // rr
+                        int newtag = nout.size();
+                        nout.add(nn);
+
+                        for (int j = 0; j < tags.size(); j++) {
+                            nout.get(newtag).nbr.add(tags.get(j));
+                            nout.get(tags.get(j)).nbr.add(newtag);
+                        }
+
+                        for (int j = 0; j < xidx.size(); j++) {
+
+                            //** assign new tag to the particles of the cluster **//
+                            xin.get(xidx.get(j)).tag = newtag;
+
+                            if (Float.isNaN(xin.get(xidx.get(j)).vx) || Float.isNaN(xin.get(xidx.get(j)).vy) || Float.isNaN(xin.get(xidx.get(j)).vz))
+                            {IJ.log("Float.isNaN(xin.get(xidx.get(j)).vx) || Float.isNaN(xin.get(xidx.get(j)).vy) || Float.isNaN(xin.get(xidx.get(j)).vz)=TRUE");}
+
+                            //** add particles used for the estimate (for Xk resampling later) **//
+                            Rk.add(xin.get(xidx.get(j)));
+
+                            if (Rcws.size()==0) Rcws.add(xin.get(xidx.get(j)).w);
+                            else                Rcws.add(xin.get(xidx.get(j)).w + Rcws.get(Rcws.size() - 1));
+
+                            //** fill suppmap with selected particles **//
+                            int xi = Math.round(xin.get(xidx.get(j)).x);
+                            int yi = Math.round(xin.get(xidx.get(j)).y);
+                            int zi = Math.round(xin.get(xidx.get(j)).z);
+                            suppmap[zi*(N*M)+yi*N+xi] = newtag;
+
+                            // for (int k = 0; k < offxyz[R_supp].length; k++)
+
+                        }
+
+                    }
+
+                } // count >= count_min
+
+            }
+
+        }
 
     }
 
     private ArrayList<Float> update(ArrayList<X> x, ArrayList<X> z) {// , ArrayList<Integer> cnt // if updated with X instances, outputs CWS with updated weights, for resampling
+
         g = new float[x.size()][z.size()];
         Cz = new float[z.size()];
 
@@ -1883,11 +1860,16 @@ public class MultiTT {
 
             // Cz[j] initialize with clutter PHD here
             Cz[j] = (float) Math.exp(-kclutt*z.get(j).tness); // clutter(z.get(j).tness, kclutt, cluttertness); // *(float)tnessinit
+
             for (int i = 0; i < x.size(); i++) {
 
-                g[i][j] = gzx(z.get(j), x.get(i), gzx_sigma);
+//                if (x.get(i)!=null) { // null are the ones that are discarded at clustering
 
-                Cz[j] += pD * g[i][j] * x.get(i).w;
+                    g[i][j] = gzx(z.get(j), x.get(i), gzx_sigma);
+
+                    Cz[j] += pD * g[i][j] * x.get(i).w;
+
+//                }
 
             }
 
@@ -1898,16 +1880,20 @@ public class MultiTT {
 
         for (int i = 0; i < x.size(); i++) {
 
-            float wup = (1-pD) * x.get(i).w; // wup == updated weight for i-th particle
+//            if (x.get(i)!=null) {
 
-            for (int j = 0; j < z.size(); j++) {
-                wup += (pD*g[i][j]*x.get(i).w)/Cz[j]; // update particle weight equation
-            }
+                float wup = (1-pD) * x.get(i).w; // wup == updated weight for i-th particle
 
-            x.get(i).w = wup;
+                for (int j = 0; j < z.size(); j++) {
+                    wup += (pD*g[i][j]*x.get(i).w)/Cz[j]; // update particle weight equation
+                }
 
-            if (i==0)   cws.add(i, wup);
-            else        cws.add(i, wup + cws.get(cws.size()-1));
+                x.get(i).w = wup;
+
+                if (cws.size()==0)   cws.add(i, wup);
+                else        cws.add(i, wup + cws.get(cws.size()-1));
+
+//            }
 
         }
 
@@ -2029,7 +2015,7 @@ public class MultiTT {
         return out;
     }
 
-    void resample(ArrayList<X> Xin, ArrayList<Float> Cws, int N, ArrayList<X> Xout) {
+    void resample(ArrayList<X> Xin, ArrayList<Float> Cws, int N, float weight, ArrayList<X> Xout) {
         // systematic resampling algorithm, Beyond Kalman Filtering, Ristic et al.
         float wmass = Cws.get(Cws.size()-1);
         float u1 = (wmass/N) * rndgen.nextFloat();
@@ -2040,10 +2026,14 @@ public class MultiTT {
 
         for (int j = 0; j < N; j++) {
             float uj = u1 + j*(wmass/(float)N);
-            while (uj > Cws.get(i)) i++;
+            while (uj > Cws.get(i) && i<Cws.size()-1) i++;
             X tt    = new X(Xin.get(i));
-            tt.w    = wmass/N;
+            tt.w    = weight;
             tt.tag  = Xin.get(i).tag;
+
+            if (Float.isNaN(tt.vx) || Float.isNaN(tt.vy) || Float.isNaN(tt.vz))
+            {IJ.log("Float.isNaN(tt.vx) || Float.isNaN(tt.vy) || Float.isNaN(tt.vz)=TRUE");}
+
             Xout.add(tt);
         }
 
@@ -2082,7 +2072,7 @@ public class MultiTT {
         return discovered;
     }
 
-    public ArrayList<Node> bfs1(ArrayList<Node> nlist) {
+    public ArrayList<Node> bfs1(ArrayList<Node> nlist, boolean remove_isolated_tree_with_one_node) {
 
         /*
         https://en.wikipedia.org/wiki/Breadth-first_search
@@ -2138,28 +2128,32 @@ public class MultiTT {
             parent[seed] = -1;
             q.enqueue(seed);
 
+            int nodesInTree = 0;
+
             while (q.hasItems()) {
 
                 // dequeue(), take from FIFO structure, http://en.wikipedia.org/wiki/Queue_%28abstract_data_type%29
                 int curr = (Integer) q.dequeue();
 
-                //
                 float x = nlist.get(curr).loc[0];
                 float y = nlist.get(curr).loc[1];
                 float z = nlist.get(curr).loc[2];
                 float r = nlist.get(curr).r;
-                Node n = new Node(x, y, z, r, (treecnt+1)); // start from RED
+                Node n = new Node(x, y, z, r, (treecnt+1)); // start from RED tree
                 if (parent[curr] > 0) n.nbr.add(nmap[parent[curr]]);
+
                 nmap[curr] = tree.size();
                 tree.add(n);
+                nodesInTree++;
 
                 // for each node adjacent to current
+//                int countadj = 0;
                 for (int j = 0; j < nlist.get(curr).nbr.size(); j++) {
+
                     int adj = nlist.get(curr).nbr.get(j);
+
                     if (dist[adj] == Integer.MAX_VALUE) {
-                        //
                         dist[adj] = dist[curr] + 1;
-                        //
                         parent[adj] = curr;
                         // enqueue(), add to FIFO structure, http://en.wikipedia.org/wiki/Queue_%28abstract_data_type%29
                         q.enqueue(adj);
@@ -2167,8 +2161,18 @@ public class MultiTT {
 
                 }
 
+                // check if there were any neighbours
+                if (nodesInTree==1 && !q.hasItems() && remove_isolated_tree_with_one_node) {
+                    tree.remove(tree.size()-1);     // remove the one that was just added
+                    nmap[curr] = -1;                // cancel the last entry
+                }
 
             }
+
+//            IJ.log("tree[ "+treecnt+" ] ="+nodesInTree+" nodes");
+//            if (nodesInTree==1) {
+//                tree.remove(tree.size()-1);
+//            }
 
         }
 
