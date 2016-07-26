@@ -154,7 +154,7 @@ public class MTracker implements PlugIn {
             gd.addStringField("sigmas",         Prefs.get("com.braincadet.ndelin.multi.sigmas",       sigmas), 10);
             gd.addStringField("th",             Prefs.get("com.braincadet.ndelin.multi.th",           th_csv), 10);
             gd.addMessage("");
-            gd.addStringField("no",             Prefs.get("com.braincadet.ndelin.multi.no",           no_csv), 10);
+            gd.addStringField("no",             Prefs.get("com.braincadet.ndelin.multi.no",           no_csv), 20);
             gd.addStringField("ro",             Prefs.get("com.braincadet.ndelin.multi.ro",           ro_csv), 10);
             gd.addStringField("ni",             Prefs.get("com.braincadet.ndelin.multi.ni",           ni_csv), 10);
             gd.addStringField("step",           Prefs.get("com.braincadet.ndelin.multi.step",         step_csv), 10);
@@ -274,6 +274,8 @@ public class MTracker implements PlugIn {
         ImageStack  is_tness;
         ImagePlus   ip_tness=null;
 
+        long t1prep = System.currentTimeMillis();
+
         if (true) {//usetness
 
             IJ.log(" -- prefiltering...");
@@ -353,6 +355,10 @@ public class MTracker implements PlugIn {
             tness[i] = (tnessmax-tnessmin > Float.MIN_VALUE)? ((tness[i]-tnessmin)/(tnessmax-tnessmin)) : 0 ;
         }
 
+        long t2prep = System.currentTimeMillis();
+        float tprep = (t2prep - t1prep) / 1000f;
+        IJ.log("tprep="+tprep);
+
         suppmap = new int[SZ];         // suppression map (to avoid re-tracking)
         // go through comma separated parameter values
         for (int i01 = 0; i01 < no.length; i01++) {
@@ -366,6 +372,8 @@ public class MTracker implements PlugIn {
                                         for (int i09 = 0; i09 < th.length; i09++) {
                                             for (int i10 = 0; i10 < kc.length; i10++) {
 //                                                for (int i11 = 0; i11 < maxepoch.length; i11++) {
+
+                                                long t1 = System.currentTimeMillis();
 
                                                     if (savemidres) {
                                                         Tools.createAndCleanDir(midresdir + File.separator + "g(z|x)");
@@ -457,7 +465,6 @@ public class MTracker implements PlugIn {
                                                     }
 
                                                     IJ.log("-- initialize...");
-
                                                     MultiTT mtt; // multi-object tracker
                                                     mtt = new MultiTT(P == 1, no[i01], ro[i02], ni[i03], krad[i04], step[i05], kappa[i06], pS[i07], pD[i08], th[i09], kc[i10]);
 
@@ -471,14 +478,16 @@ public class MTracker implements PlugIn {
 
                                                     //******************************************************************
                                                     IJ.log("-- multi-object filtering...");
-                                                    long t1 = System.currentTimeMillis();
+
+//                                                long t1 = System.currentTimeMillis();
+
                                                     int epochcnt = 0;
 
                                                     while (locs.size() > 0 && epochcnt < maxepoch) {
 
                                                         epochcnt++;
 
-                                                        IJ.log("e=" + epochcnt + " [" + maxepoch + "]");
+                                                        if (mtt.verbose) IJ.log("e=" + epochcnt + " [" + maxepoch + "]");
 
                                                         iter_count = 0;
 
@@ -489,8 +498,8 @@ public class MTracker implements PlugIn {
                                                             }
                                                         }
 
-                                                        IJ.log(IJ.d2s(locs.size() / 1000f, 1) + "k locations \n" +
-                                                                IJ.d2s((locs.size()/locs_count)*100f, 1) + "%    of the initial pool\n------------------\n");
+                                                        if (mtt.verbose)
+                                                            IJ.log(IJ.d2s(locs.size() / 1000f, 1) + "k locations \n" + IJ.d2s((locs.size()/locs_count)*100f, 1) + "% of the initial pool\n------------------\n");
 
                                                         if (locs.size()==0) {
                                                             IJ.log("locs.size()==0");
@@ -500,14 +509,14 @@ public class MTracker implements PlugIn {
 //                                                        ArrayList<int[]> N_o = initlocs(no[i01], locs, locsw); // xyz locations
 
                                                         ArrayList<int[]> N_o = new ArrayList<int[]>();
-                                                        mtt._init(no[i01], TUBE_RADIUS, locs, locsw, N_o, img, N, M, P, tness, suppmap);
+                                                        mtt._init(no[i01], step[i05], locs, locsw, N_o, img, N, M, P, tness, suppmap); //  TUBE_RADIUS
                                                         if (N_o.size()==0) {
                                                             IJ.log("initialization stopped, |N_o|=0");
                                                             break; // out of while()
                                                         }
 
                                                         // for plots
-                                                        exportlocsxyz(N_o, 10f, RED, ip_load.getOriginalFileInfo().directory + File.separator, IJ.d2s(N_o.size(),0)+"_seeds_");
+                                                        //exportlocsxyz(N_o, 10f, RED, ip_load.getOriginalFileInfo().directory + File.separator, IJ.d2s(N_o.size(),0)+"_seeds_");
 
                                                         if (savemidres) {
 
@@ -538,7 +547,7 @@ public class MTracker implements PlugIn {
 
                                                             while (iter_count < maxiter) {
 
-                                                                IJ.log("k=" + iter_count);
+                                                                if (mtt.verbose) IJ.log("k=" + iter_count);
 
                                                                 boolean iterok;
 
@@ -577,7 +586,9 @@ public class MTracker implements PlugIn {
                                                         }
                                                         else IJ.log("mtt.Xk.size() == 0");
 
-                                                        if (epochcnt==maxepoch) { // export each number of iterations  ( || epochcnt%1==0)
+                                                        if (epochcnt==maxepoch) { // export each number of iterations  ( || epochcnt%1==0) || epochcnt%1==0
+
+                                                            long t22 = System.currentTimeMillis();
 
                                                             // save output before switching to new epoch
                                                             String delindir = imdir + "NDLN.sig.th.no.ro.ni.krad.stp.kapa.ps.pd.kc.e_" + sigmas + "_" + IJ.d2s(th[i09], 2) + "_" + IJ.d2s(no[i01], 0) + "_" + IJ.d2s(ro[i02], 0) + "_" + IJ.d2s(ni[i03], 0) + "_" + IJ.d2s(krad[i04], 0) + "_" + IJ.d2s(step[i05], 0) + "_" + IJ.d2s(kappa[i06], 1) + "_" + IJ.d2s(pS[i07], 2) + "_" + IJ.d2s(pD[i08], 2) + "_" + IJ.d2s(kc[i10], 1) + "_" + IJ.d2s(epochcnt, 0) + "_" + IJ.d2s(new Random().nextInt(Integer.MAX_VALUE),0);
@@ -592,12 +603,26 @@ public class MTracker implements PlugIn {
 
                                                             ArrayList<Node> tree = mtt.bfs1(mtt.Y, true);
                                                             exportReconstruction(tree, delindir, imnameshort); // export .swc   epochcnt, mtt.Y.size()-1,
+
+                                                            // export time (preprocesing + filtering), publication report
+                                                            String timelogfile = imdir + "ndln.csv"; // imnameshort+
+                                                            String tilelogstring = imnameshort + "," + ( tprep + (t22-t1)/1000f ) + "," + "NDLN.sig.th.no.ro.ni.krad.stp.kapa.ps.pd.kc.e_" + sigmas + "_" + IJ.d2s(th[i09], 2) + "_" + IJ.d2s(no[i01], 0) + "_" + IJ.d2s(ro[i02], 0) + "_" + IJ.d2s(ni[i03], 0) + "_" + IJ.d2s(krad[i04], 0) + "_" + IJ.d2s(step[i05], 0) + "_" + IJ.d2s(kappa[i06], 1) + "_" + IJ.d2s(pS[i07], 2) + "_" + IJ.d2s(pD[i08], 2) + "_" + IJ.d2s(kc[i10], 1) + "_" + IJ.d2s(epochcnt, 0) + "_" + IJ.d2s(new Random().nextInt(Integer.MAX_VALUE),0);
+                                                            IJ.log(tilelogstring+"\nappend > "+timelogfile);
+                                                            try {
+                                                                PrintWriter wrt = new PrintWriter(new BufferedWriter(new FileWriter(timelogfile, true)));
+                                                                wrt.println(tilelogstring);
+                                                                wrt.close();
+                                                            } catch (IOException e) {}
+                                                            // export time
+
                                                         }
+
+//                                                        if (true) {IJ.log("stop"); continue;} // don't do the rest (experimental)
 
                                                     } // while there are locations and epochs have not reached the limit
 
                                                     long t2 = System.currentTimeMillis();
-                                                    IJ.log("done. " + IJ.d2s((t2 - t1) / 1000f, 2) + "s. [maxiter=" + maxiter + ", maxepoch=" + maxepoch + "]");
+                                                    IJ.log("done. " + IJ.d2s(((t2-t1)/1000f), 2) + "s. [maxiter=" + maxiter + ", maxepoch=" + maxepoch + "]");
 
                                                     if (true && savemidres) {
                                                         exportDelineation(mtt.Y, midresdir, imnameshort);   // .ndln file
@@ -885,6 +910,9 @@ public class MTracker implements PlugIn {
         } catch (IOException e) {}
 
     }
+
+    // for the publication report only
+//    private void exportTime(String name, float t22, String signature, String outdir, String outfile) {}
 
     private void exportDelineation(ArrayList<Node> nlist, String outdir, String outfile) {
 

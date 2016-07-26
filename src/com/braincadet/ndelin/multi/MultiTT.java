@@ -36,9 +36,9 @@ public class MultiTT {
     float       kappa = Float.NaN;          // von Mises distribution kappa = 0.5, 1, 2
     float       pS = Float.NaN;             // probability
     float       pD = Float.NaN;             // detection probability
-    public float cluttertness = Float.NaN;   // 0-background, 1-tubularity level at which _init objects are
+    public float cluttertness = Float.NaN;  // 0-background, 1-tubularity level at which _init objects are
     float       kclutt = Float.NaN;         // drop in PHD measure of the clutter
-//    double      tnessinit = Double.NaN;      // tubularity level at initial objects
+//    double      tnessinit = Double.NaN;   // tubularity level at initial objects
 
     float[][]   vxyzUniform;                // 2d, 3d directions
 
@@ -65,7 +65,7 @@ public class MultiTT {
 
     public ArrayList<Node> Y;
 
-    public static int   OBJECT_LIMIT = 150;     // limit amount of objects filtered
+    public static int   OBJECT_LIMIT = 200;     // limit amount of objects filtered
     public static int   MAXITER     = Integer.MAX_VALUE;
     public static float EPSILON2    = 0.000001f;
 
@@ -85,11 +85,11 @@ public class MultiTT {
     boolean[]       checked;
     ArrayList[]     nbridxs;
 
-    boolean verbose = true;
+    public boolean verbose = false; // to show the particle log
     public int R_supp = 0;
     public float gzx_sigma = 2f; // used in calculating likelihood, the distance towards measurement
     public static float weight_deg = 5;
-    public static float weight_deg77 = 6; // for init locations
+    public static float weight_deg77 = 2; // for init locations
     int MIN_CLUST_SIZE = -1; //(int) Math.round(0.1*x.size()); will refer to ni
     float wmin = 0.4f;
 
@@ -137,7 +137,7 @@ public class MultiTT {
         }
 
         this.is2d = is2d;
-        this.nobjstart = no;
+        this.nobjstart = (no>OBJECT_LIMIT)?OBJECT_LIMIT:no;
         this.ro = ro;
         this.ni = ni;
         this.MIN_CLUST_SIZE = 2*ni;
@@ -670,7 +670,7 @@ public class MultiTT {
 
             // sample one
             double totalmass = c1.get(c1.size()-1);
-            double u1 = (totalmass/(float)n) * new Random().nextDouble();
+            double u1 = (totalmass) * new Random().nextDouble(); // / (float)n , no division with n
 
             int k = 0;
             while (u1 > c1.get(k) && k<c1.size()-1) k++;
