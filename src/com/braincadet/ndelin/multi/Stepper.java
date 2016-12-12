@@ -120,10 +120,12 @@ public class Stepper {
         double rad, circ, val, dotp; // radial, polar distance
 
         w  = new double[v.length][sz];
+        double w_min = Float.POSITIVE_INFINITY;
+        double w_max = Float.NEGATIVE_INFINITY;
 
         for (int i = 0; i < v.length; i++) { // v.length == number of directions
 
-            float wsum = 0;
+
 
             for (int j = 0; j < sz; j++) {
 
@@ -136,12 +138,30 @@ public class Stepper {
                 val = (dotp>0)? circ * rad : 0 ;
                 w[i][j] = (float) val;
 
-                wsum += val;
+                if (w[i][j]<w_min) w_min = w[i][j];
+                if (w[i][j]>w_max) w_max = w[i][j];
 
             }
 
-            for (int j = 0; j < p.length; j++)
-                w[i][j] = w[i][j]/wsum;
+            float wsum = 0;
+
+            for (int j = 0; j < sz; j++) {
+
+                w[i][j] = ((w[i][j]-w_min)/(w_max-w_min)); // z normalized
+                w[i][j] = (w[i][j]<0.2)? 0 : w[i][j]; // crop so that there is no backward prediction
+                wsum += w[i][j];
+
+            }
+
+            for (int j = 0; j < p.length; j++) {
+                w[i][j] = w[i][j] / wsum; // normalize into probability distribution
+            }
+
+//            String tt = "";
+//            for (int j = 0; j < p.length; j++) {
+//                tt += IJ.d2s(((w[i][j]-w_min)/(w_max-w_min)), 4) +" | ";
+//            }
+//            IJ.log(tt);
 
         }
 

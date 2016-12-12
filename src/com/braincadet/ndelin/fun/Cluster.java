@@ -6,6 +6,7 @@ import java.util.ArrayList;
 
 /**
  * Created by miroslav on 11/8/15.
+ * this class is obsolete!
  */
 public class Cluster {
 
