@@ -7,20 +7,24 @@ import com.braincadet.ndelin.swc.Node;
 import features.TubenessProcessor;
 import ij.*;
 import ij.gui.GenericDialog;
+import ij.gui.OvalRoi;
+import ij.gui.Overlay;
+import ij.io.FileSaver;
 import ij.io.OpenDialog;
 import ij.measure.Measurements;
 import ij.plugin.ImageCalculator;
 import ij.plugin.PlugIn;
+import ij.plugin.ZProjector;
 import ij.plugin.filter.MaximumFinder;
 import ij.process.*;
 
-import javax.tools.Tool;
+import java.awt.*;
 import java.io.*;
 import java.util.*;
 
 public class MTracker implements PlugIn {
 
-    // color coding for the swc in vaa3d
+    // color coding for the swc rendering as in vaa3d platform for visualization (www.vaa3d.org)
     static int WHITE=0, BLACK=1, RED=2, BLUE=3, VIOLET=4, MAGENTA=5, YELLOW=6, GREEN=7, OCHRE=8, WEAK_GREEN=9, PINK=10, BLUEBERRY=12;
 
     AutoThresholder.Method thmethod = AutoThresholder.Method.IsoData; // IsoData Moments Otsu Triangle Default
@@ -74,6 +78,14 @@ public class MTracker implements PlugIn {
     float[] tness;                      // tubeness min-max normalized
     int[]   suppmap;                    // supression map: disable sampling (image stack size)
 
+    // for multi-object detection video
+    ImageStack template_stack;
+    ImagePlus  template_image;
+    Overlay    template_ovrly;
+    ZProjector template_zprojector;
+
+
+
     int N, M, P, SZ;                    // stack dimensions (width, height, length, size)
     String imdir, imnameshort;
     String midresdir = "";              // output directories, filenames
@@ -105,11 +117,14 @@ public class MTracker implements PlugIn {
 
     public void run(String s) {
 
-        // read input image
-        String in_folder = Prefs.get("com.braincadet.ndelin.multi.dir", System.getProperty("user.home"));
+        IJ.log("test 223...");
+        if (true) return;
+
+        // read input image and remember the path
+        String in_folder = Prefs.get("com.braincadet.phd.multi.dir", System.getProperty("user.home"));
         OpenDialog.setDefaultDirectory(in_folder);
-        OpenDialog dc = new OpenDialog("Select file");
-        in_folder = dc.getDirectory(); Prefs.set("com.braincadet.ndelin.multi.dir", in_folder);
+        OpenDialog dc = new OpenDialog("Select image");
+        in_folder = dc.getDirectory(); Prefs.set("com.braincadet.phd.multi.dir", in_folder);
         String image_path = dc.getPath();
         if (image_path==null) return;
 
@@ -133,6 +148,38 @@ public class MTracker implements PlugIn {
 
         imnameshort = ip_load.getShortTitle();
         imdir = ip_load.getOriginalFileInfo().directory;
+
+        if (true) {
+            return;
+        }
+
+        if (false) {
+            // experimental code, prototype video export
+            Overlay o = new Overlay();
+            Color cc = new Color(1f,1f,0f,0.4f);
+            float rr = 1f;
+            for (int z = 1; z < P; z++) {
+                for (int x = 0; x < N/10; x++) {
+                    for (int y = 0; y < M/10; y++) {
+                        OvalRoi oi = new OvalRoi(x-rr+0.5, y-rr+0.5, 2*rr, 2*rr);
+                        oi.setPosition(z);
+                        oi.setFillColor(cc);
+                        oi.setStrokeColor(cc);
+                        o.add(oi);
+                    }
+                }
+            }
+
+            ImagePlus ip1 = ip_load.duplicate();
+            ip1.setOverlay(o);
+            ip1.updateAndDraw();
+            IJ.log("flatten...");
+            ip1.flattenStack();
+            FileSaver fs = new FileSaver(ip1);
+            fs.saveAsTiff(imdir+File.separator+imnameshort+"_flatt.tif");
+            IJ.log("saved!");
+            return;
+        }
 
         // read image into byte[]
         img = new float[SZ];
@@ -223,7 +270,7 @@ public class MTracker implements PlugIn {
 
         String[] dd;
 
-        // ge comma separated parameter values
+        // get comma separated parameter values
         dd = th_csv.split(","); if (dd.length==0) return;
         th = new float[dd.length];
         for (int i = 0; i < dd.length; i++) th[i] = Float.valueOf(dd[i]);
@@ -267,16 +314,13 @@ public class MTracker implements PlugIn {
 //        dd = maxepoch_csv.split(","); if (dd.length==0) return;
 //        maxepoch = new int[dd.length];
 //        for (int i = 0; i < dd.length; i++) maxepoch[i] = Integer.valueOf(dd[i]);
-
 //        if (true) {IJ.log("maxepoch = " + maxepoch); return;}
 
         //******************************************************************
         ImageStack  is_tness;
-        ImagePlus   ip_tness=null;
+        ImagePlus   ip_tness;
 
         long t1prep = System.currentTimeMillis();
-
-        if (true) {//usetness
 
             IJ.log(" -- prefiltering...");
             is_tness = new ImageStack(N, M);
@@ -299,7 +343,6 @@ public class MTracker implements PlugIn {
                 // average
 //                IJ.run(result, "Multiply...", "value=" + IJ.d2s(1f/readLn.length,3) + " stack");
 //                ic.run("Add 32-bit stack", ip_tness, result); // result of the addition is placed in ip_tness
-
                 // max
                 ic.run("Max 32-bit stack", ip_tness, result);
             }
@@ -312,8 +355,6 @@ public class MTracker implements PlugIn {
 //                IJ.log("saving... " + midresdir + File.separator + "tness," + sigmas + ".tif");
                 IJ.saveAs(temp, "Tiff", midresdir + File.separator + "tness," + sigmas + ".tif");
             }
-
-        }
 
         // tubeness min-max normalize and store in an array for later and extract locations in a separate array
         float tnessmin = Float.POSITIVE_INFINITY;
@@ -357,9 +398,10 @@ public class MTracker implements PlugIn {
 
         long t2prep = System.currentTimeMillis();
         float tprep = (t2prep - t1prep) / 1000f;
-        IJ.log("tprep="+tprep);
+//        IJ.log("tprep="+tprep);
 
-        suppmap = new int[SZ];         // suppression map (to avoid re-tracking)
+        suppmap = new int[SZ];         // suppression map with node tags
+
         // go through comma separated parameter values
         for (int i01 = 0; i01 < no.length; i01++) {
             for (int i02 = 0; i02 < ro.length; i02++) {
@@ -369,15 +411,16 @@ public class MTracker implements PlugIn {
                             for (int i06 = 0; i06 < kappa.length; i06++) {
                                 for (int i07 = 0; i07 < pS.length; i07++) {
                                     for (int i08 = 0; i08 < pD.length; i08++) {
-                                        for (int i09 = 0; i09 < th.length; i09++) {
+                                        for (int i09 = 0; i09 < th.length; i09++) { // todo: change threshold into local maxima sensitivity
                                             for (int i10 = 0; i10 < kc.length; i10++) {
 //                                                for (int i11 = 0; i11 < maxepoch.length; i11++) {
 
                                                 long t1 = System.currentTimeMillis();
 
-                                                    if (savemidres) {
+                                                if (savemidres) {
                                                         Tools.createAndCleanDir(midresdir + File.separator + "g(z|x)");
                                                         Tools.createAndCleanDir(midresdir + File.separator + "suppmap");
+                                                        Tools.createAndCleanDir(midresdir + File.separator + "objects");
 
                                                         X_swclog = midresdir + File.separator + "Xk.swc";
                                                         X_cnt[0] = 0;
@@ -401,83 +444,106 @@ public class MTracker implements PlugIn {
                                                         Tools.cleanfile(zsizeCsvLog);
                                                         phdmassCsvLog   = midresdir + File.separator + "phdmass.log";
                                                         Tools.cleanfile(phdmassCsvLog);
-                                                    }
+                                                }
 
-                                                    ImagePlus impool = ip_tness.duplicate();//(usetness)?ip_tness.duplicate():ip_load.duplicate();
-                                                    IJ.run(impool, "8-bit", "");
+//                                                    ImagePlus impool = ip_tness.duplicate();//(usetness)?ip_tness.duplicate():ip_load.duplicate();
+//                                                    IJ.run(impool, "8-bit", "");
 
-                                                    int threshold = (int) Math.ceil(th[i09] * 255);
-                                                    applythreshold(threshold, impool);
+//                                                    int threshold = (int) Math.ceil(th[i09] * 255);
+//                                                    applythreshold(threshold, impool);
 
-                                                    Prefs.blackBackground = true;
-                                                    IJ.run(impool, "Skeletonize", "stack");
+//                                                    Prefs.blackBackground = true;
+//                                                    IJ.run(impool, "Skeletonize", "stack");
 
-                                                    if (savemidres) {
-                                                        IJ.saveAs(impool, "Tiff", midresdir + File.separator + "seedpool,th=" + IJ.d2s(th[i09], 2) + ".tif");
-                                                    }
+//                                                    if (savemidres) {
+//                                                        IJ.saveAs(impool, "Tiff", midresdir + File.separator + "seedpool,th=" + IJ.d2s(th[i09], 2) + ".tif");
+//                                                    }
 
-                                                    ArrayList<Integer> locs = new ArrayList<Integer>();     // list of candidate locations for seed points
-                                                    ArrayList<Float> locsw = new ArrayList<Float>();       // weights assigned to each location
+                                                ArrayList<Integer> locs = new ArrayList<Integer>();     // list of candidate locations for seed points
+                                                ArrayList<Float> locsw = new ArrayList<Float>();       // weights assigned to each location
 
-                                                    for (int z = ((P==1)?1:2); z <= ((P==1)?P:P-1); z++) { // layer count, zcoord is layer-1
-
-                                                        byte[] slc;
-
-                                                        if (false) { // alternative seed location - ether local maxima or threshold and then sample by tubularity measure
+                                                for (int z = ((P==1)?1:2); z <= ((P==1)?P:P-1); z++) { // layer count, zcoord is layer-1
+//                                                        byte[] slc;
+                                                        Polygon maxx;
+//                                                        if (true) { // seed location - local maxima of the tubularity measure
                                                             MaximumFinder mf = new MaximumFinder();
-                                                            slc = (byte[])mf.findMaxima(ip_tness.getStack().getProcessor(z), 2, MaximumFinder.SINGLE_POINTS, true).getPixels();
+//                                                            slc = (byte[])mf.findMaxima(ip_tness.getStack().getProcessor(z), 0.1, MaximumFinder.SINGLE_POINTS, true).getPixels();
+                                                            maxx=mf.getMaxima(ip_tness.getStack().getProcessor(z), th[i09], false);
+//                                                        }
+//                                                        else { // alternative seed location - threshold+skeletonize tubularity measure
+//                                                            slc = (byte[]) impool.getStack().getPixels(z);
+//                                                        }
+
+                                                        for (int i = 0; i < maxx.npoints; i++) {
+//                                                            IJ.log("[x,y]="+maxx.xpoints[i]+", "+maxx.ypoints[i]);
+                                                            int ii = (z - 1) * (N * M) + maxx.ypoints[i] * N + maxx.xpoints[i];
+                                                            locs.add(ii);
+                                                            locsw.add((float) Math.pow(tness[ii], MultiTT.weight_deg77)); // 1f (float) Math.pow(tness[ii], MultiTT.weight_deg77)
                                                         }
-                                                        else {
-                                                            slc = (byte[]) impool.getStack().getPixels(z);
-                                                        }
+//                                                        for (int x = 0; x < N; x++) {
+//                                                            for (int y = 0; y < M; y++) {
+//                                                                int ii = (z - 1) * (N * M) + y * N + x;
+//                                                                if ((slc[y * N + x] & 0xff) == 255) {
+//                                                                    locs.add(ii);
+//                                                                    locsw.add((float) Math.pow(tness[ii], MultiTT.weight_deg77));
+//                                                                }
+//                                                            }
+//                                                        }
+                                                }
 
-                                                        for (int x = 0; x < N; x++) {
-                                                            for (int y = 0; y < M; y++) {
+                                                if (locs.size() == 0) {
+                                                    IJ.log("0 seed candidate locations. no initiation for tolerance=" + IJ.d2s(th[i09], 2));
+                                                    continue; // try another param configuration
+                                                }
 
-                                                                int ii = (z - 1) * (N * M) + y * N + x;
+                                                float locs_count = locs.size();
 
-                                                                if ((slc[y * N + x] & 0xff) == 255) {
-                                                                    locs.add(ii);
-                                                                    locsw.add((float) Math.pow(tness[ii], MultiTT.weight_deg77)); //
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-
-                                                    if (locs.size() == 0) {
-                                                        IJ.log("0 seed candidate locations. no initiation for threshold=" + IJ.d2s(th[i09], 2));
-                                                        continue; // try another param configuration
-                                                    }
-
-                                                    float locs_count = locs.size();
-
-                                                    if (true && savemidres) {
+                                                if (savemidres) {
                                                         // convert before exporting
                                                         ArrayList<int[]> tt = new ArrayList<int[]>(locs.size());
+
                                                         for (int i = 0; i < locs.size(); i++) {
                                                             int x = locs.get(i) % N;
                                                             int z = locs.get(i) / (N * M);
                                                             int y = locs.get(i) / N - z * M;
                                                             tt.add(new int[]{x, y, z});
                                                         }
-                                                        exportlocsxyz(tt, 0.3f, VIOLET, midresdir, "seed_pool");
+
+                                                        Overlay ov = new Overlay();
+                                                        OvalRoi or = new OvalRoi(5+0.5,5+0.5,2,2);
+                                                        or.setFillColor(Color.YELLOW);
+                                                        or.setPosition(0+1);
+                                                        ov.add(or);
+                                                        // save input image with an overlay of candidate points
+//                                                        ip_load.setOverlay(ov);
+//                                                        IJ.saveAs(ip_load, "TIFF", midresdir + File.separator + "t0.tif");
+
+                                                        exportlocsxyz(tt, 0.3f, VIOLET, midresdir, "seedpool_tolerance="+IJ.d2s(th[i09], 2));
+
                                                         tt.clear();
-                                                    }
+                                                }
 
-                                                    IJ.log("-- initialize...");
-                                                    MultiTT mtt; // multi-object tracker
-                                                    mtt = new MultiTT(P == 1, no[i01], ro[i02], ni[i03], krad[i04], step[i05], kappa[i06], pS[i07], pD[i08], th[i09], kc[i10]);
+                                                IJ.log("-- initialize...");
+                                                MultiTT mtt; // multi-object tracker
+                                                mtt = new MultiTT(P == 1, no[i01], ro[i02], ni[i03], krad[i04], step[i05], kappa[i06], pS[i07], pD[i08], th[i09], kc[i10]);
 
-                                                    if (savemidres) {
-                                                        mtt.exporttemplates(midresdir);
-                                                        Tools.createAndCleanDir(midresdir + File.separator + "mmodel");
-                                                        mtt.mm.getModel(midresdir + File.separator + "mmodel");
-                                                    }
+                                                if (savemidres) {
+                                                    mtt.exporttemplates(midresdir);
+                                                    Tools.createAndCleanDir(midresdir + File.separator + "mmodel");
+                                                    mtt.mm.getModel(midresdir + File.separator + "mmodel");
+                                                }
 
-                                                    Arrays.fill(suppmap, 0); // reset suppression map, it will fill up as epochs advance
+                                                Arrays.fill(suppmap, 0); // reset suppression map, it will fill up as epochs advance
 
-                                                    //******************************************************************
-                                                    IJ.log("-- multi-object filtering...");
+                                                template_stack = new ImageStack(N, M);
+                                                for (int lay = 0; lay < P; lay++) {
+                                                    template_stack.addSlice(new ByteProcessor(N, M));
+                                                }
+                                                template_image = new ImagePlus();
+                                                template_ovrly = new Overlay();
+                                                template_zprojector = new ZProjector();
+                                                //******************************************************************
+                                                IJ.log("-- multi-object filtering...");
 
 //                                                long t1 = System.currentTimeMillis();
 
@@ -491,31 +557,51 @@ public class MTracker implements PlugIn {
 
                                                         iter_count = 0;
 
+                                                        int cnt_removed = 0;
+
                                                         for (int i = locs.size() - 1; i >= 0; i--) {
                                                             if (suppmap[locs.get(i)] > 0) {
                                                                 locs.remove(i);
                                                                 locsw.remove(i);
+
+                                                                cnt_removed++;
                                                             }
                                                         }
 
+                                                        IJ.log("REMOVED === "+cnt_removed);
+
                                                         if (mtt.verbose)
-                                                            IJ.log(IJ.d2s(locs.size() / 1000f, 1) + "k locations \n" + IJ.d2s((locs.size()/locs_count)*100f, 1) + "% of the initial pool\n------------------\n");
+                                                            IJ.log(IJ.d2s(locs.size() / 1000f, 1) + "k locations ["+locs.size()+"] \n" + IJ.d2s((locs.size()/locs_count)*100f, 1) + "% of the initial pool\n------------------\n");
 
                                                         if (locs.size()==0) {
                                                             IJ.log("locs.size()==0");
+
+                                                            // export tree
+                                                            String delindir = imdir + "NDLN.sig.th.no.ro.ni.krad.stp.kapa.ps.pd.kc.e_" + sigmas + "_" + IJ.d2s(th[i09], 2) + "_" + IJ.d2s(no[i01], 0) + "_" + IJ.d2s(ro[i02], 0) + "_" + IJ.d2s(ni[i03], 0) + "_" + IJ.d2s(krad[i04], 0) + "_" + IJ.d2s(step[i05], 0) + "_" + IJ.d2s(kappa[i06], 1) + "_" + IJ.d2s(pS[i07], 2) + "_" + IJ.d2s(pD[i08], 2) + "_" + IJ.d2s(kc[i10], 1) + "_" + IJ.d2s(epochcnt, 0);// + "_" + IJ.d2s(new Random().nextInt(Integer.MAX_VALUE),0);
+//                                                            Tools.createAndCleanDir(delindir);
+                                                            Tools.createDir(delindir);
+                                                            remove_double_links(mtt.Y);
+                                                            if (!is_biderectinal_linking(mtt.Y)) {
+                                                                IJ.log("missing link! fault in bidirectional linking");
+                                                                return;
+                                                            }
+
+                                                            ArrayList<Node> tree = mtt.bfs1(mtt.Y, true);
+                                                            exportReconstruction(tree, delindir, imnameshort); // export .swc   epochcnt, mtt.Y.size()-1,
+
                                                             break; // go out of while()
                                                         }
 
 //                                                        ArrayList<int[]> N_o = initlocs(no[i01], locs, locsw); // xyz locations
-
                                                         ArrayList<int[]> N_o = new ArrayList<int[]>();
-                                                        mtt._init(no[i01], step[i05], locs, locsw, N_o, img, N, M, P, tness, suppmap); //  TUBE_RADIUS
+
+                                                        //********** initialization **********//
+                                                        mtt._init(no[i01], step[i05], locs, locsw, N_o, img, N, M, P, tness, suppmap); // , template_ovrly
                                                         if (N_o.size()==0) {
                                                             IJ.log("initialization stopped, |N_o|=0");
                                                             break; // out of while()
                                                         }
 
-                                                        // for plots
                                                         //exportlocsxyz(N_o, 10f, RED, ip_load.getOriginalFileInfo().directory + File.separator, IJ.d2s(N_o.size(),0)+"_seeds_");
 
                                                         if (savemidres) {
@@ -531,10 +617,35 @@ public class MTracker implements PlugIn {
                                                             logval(zsizeCsvLog, no[i01]);                     // nr. observations mtt.Zk.size()
                                                             logval(phdmassCsvLog, mtt.phdmass);
 
+                                                            //---------------------------------------------------------------------------------------------------
                                                             if (false) { // it can log the tags... slows down a lot... and takes memory!!!
-                                                                String name = "suppmap,_init";
-                                                                ImagePlus hpimp = getSuppMap(name);
-                                                                IJ.saveAs(hpimp, "Tiff", midresdir + File.separator + "suppmap" + File.separator + name + ".tif");
+                                                                ImagePlus hpimp = getSuppMap();
+                                                                template_zprojector.setImage(hpimp);
+                                                                template_zprojector.setMethod(ZProjector.MAX_METHOD);
+                                                                template_zprojector.doProjection();
+                                                                hpimp = template_zprojector.getProjection();
+//                                                                IJ.run(hpimp, "8-bit", "");
+                                                                IJ.saveAs(hpimp, "Zip", midresdir + File.separator + "suppmap" + File.separator + "r="+IJ.d2s(epochcnt, 0)+",i=" + IJ.d2s(0, 0) + ".zip");
+//                                                                template_image.setStack(template_stack);
+//                                                                template_image.setOverlay(template_ovrly);
+//                                                                template_image.flattenStack(); // takes java 1.6 at least
+//                                                                IJ.run(template_image, "8-bit", "");
+//                                                                template_zprojector.setImage(template_image);
+//                                                                template_zprojector.setMethod(ZProjector.MAX_METHOD);
+//                                                                template_zprojector.doRGBProjection();
+//                                                                ImagePlus hpimp1 = template_zprojector.getProjection();
+
+//                                                                hpimp1.setTitle("obj");
+//                                                                hpimp1.show();
+//                                                                hpimp.show();
+//                                                                IJ.run("Add Image...", "image=obj x=0 y=0 opacity=40 zero");
+//                                                                hpimp.updateAndDraw();
+
+//                                                                IJ.saveAs(hpimp, "Zip", midresdir + File.separator + "suppmap" + File.separator + "phd,r="+IJ.d2s(epochcnt, 0)+",i=" + IJ.d2s(0, 0) + ".zip");
+
+//                                                                hpimp.close();
+//                                                                hpimp1.close();
+
                                                             }
 
                                                         }
@@ -551,19 +662,53 @@ public class MTracker implements PlugIn {
 
                                                                 boolean iterok;
 
-                                                                iterok = mtt._iter1(N, M, P, tness, suppmap);
+                                                                iterok = mtt._iter1(N, M, P, tness, suppmap, template_ovrly);
 
-                                                                if (savemidres && iter_count==maxiter-1) { // iter_count%5==0
+                                                                if (savemidres) { // iter_count%5==0 && iter_count==maxiter-1
 
                                                                     Xlog(mtt.Xk, GREEN);
                                                                     XPlog(mtt.XPk, BLUEBERRY);
                                                                     Zlog(mtt.Zk, RED, 1f);
                                                                     ZPlog(mtt.ZPk, OCHRE, .1f);
 
+                                                                    //---------------------------------------------------------------------------------------------------
                                                                     if (false) { // set if you wish to have the map, takes lot of resources!
-                                                                        String name = "suppmap,iter0=" + IJ.d2s(iter_count, 0);
-                                                                        ImagePlus hpimp = getSuppMap(name);
-                                                                        IJ.saveAs(hpimp, "Tiff", midresdir + File.separator + "suppmap" + File.separator + name + ".tif");
+
+                                                                        ImagePlus hpimp = getSuppMap();
+                                                                        template_zprojector.setImage(hpimp);
+                                                                        template_zprojector.setMethod(ZProjector.MAX_METHOD);
+                                                                        template_zprojector.doProjection();
+                                                                        hpimp = template_zprojector.getProjection();
+//                                                                        IJ.run(hpimp, "8-bit", "");
+                                                                        IJ.saveAs(hpimp, "Zip",midresdir + File.separator + "suppmap" + File.separator + "r="+IJ.d2s(epochcnt, 0)+",i=" + IJ.d2s(iter_count+1, 0) + ".zip");
+
+//                                                                        template_image.setStack(template_stack);
+//                                                                        if (template_ovrly.size()>0) {
+//                                                                            template_image.setOverlay(template_ovrly);
+//                                                                            template_image.flattenStack(); // asks java 1.6
+//                                                                        }
+
+//                                                                      IJ.run(template_image, "8-bit", "");
+//                                                                        template_zprojector.setImage(template_image);
+//                                                                        template_zprojector.setMethod(ZProjector.MAX_METHOD);
+//                                                                        if (template_image.getType()==ImagePlus.COLOR_RGB)
+//                                                                            template_zprojector.doRGBProjection(); // there was flattening
+//                                                                        else
+//                                                                            template_zprojector.doProjection();
+
+//                                                                        ImagePlus hpimp1 = template_zprojector.getProjection();
+
+//                                                                        hpimp1.setTitle("obj");
+//                                                                        hpimp1.show();
+//                                                                        hpimp.show();
+//                                                                        IJ.run("Add Image...", "image=obj x=0 y=0 opacity=40 zero");
+//                                                                        hpimp.updateAndDraw();
+
+//                                                                        IJ.saveAs(hpimp, "Zip",midresdir + File.separator + "suppmap" + File.separator + "phd,r="+IJ.d2s(epochcnt, 0)+",i=" + IJ.d2s(iter_count+1, 0) + ".zip");
+
+//                                                                        hpimp.close();
+//                                                                        hpimp1.close();
+
                                                                     }
 
                                                                     logval(tnessCsvLog, mtt.XPk);
@@ -586,45 +731,47 @@ public class MTracker implements PlugIn {
                                                         }
                                                         else IJ.log("mtt.Xk.size() == 0");
 
-                                                        if (epochcnt==maxepoch) { // export each number of iterations  ( || epochcnt%1==0) || epochcnt%1==0
+                                                        if (locs.size() == 0 || epochcnt == maxepoch) { // each number of iterations  || epochcnt%5==0
 
-                                                            long t22 = System.currentTimeMillis();
+//                                                            long t22 = System.currentTimeMillis();
 
                                                             // save output before switching to new epoch
-                                                            String delindir = imdir + "NDLN.sig.th.no.ro.ni.krad.stp.kapa.ps.pd.kc.e_" + sigmas + "_" + IJ.d2s(th[i09], 2) + "_" + IJ.d2s(no[i01], 0) + "_" + IJ.d2s(ro[i02], 0) + "_" + IJ.d2s(ni[i03], 0) + "_" + IJ.d2s(krad[i04], 0) + "_" + IJ.d2s(step[i05], 0) + "_" + IJ.d2s(kappa[i06], 1) + "_" + IJ.d2s(pS[i07], 2) + "_" + IJ.d2s(pD[i08], 2) + "_" + IJ.d2s(kc[i10], 1) + "_" + IJ.d2s(epochcnt, 0) + "_" + IJ.d2s(new Random().nextInt(Integer.MAX_VALUE),0);
-                                                            Tools.createAndCleanDir(delindir);
+                                                            String delindir = imdir + "NDLN.sig.th.no.ro.ni.krad.stp.kapa.ps.pd.kc.e_" + sigmas + "_" + IJ.d2s(th[i09], 2) + "_" + IJ.d2s(no[i01], 0) + "_" + IJ.d2s(ro[i02], 0) + "_" + IJ.d2s(ni[i03], 0) + "_" + IJ.d2s(krad[i04], 0) + "_" + IJ.d2s(step[i05], 0) + "_" + IJ.d2s(kappa[i06], 1) + "_" + IJ.d2s(pS[i07], 2) + "_" + IJ.d2s(pD[i08], 2) + "_" + IJ.d2s(kc[i10], 1) + "_" + IJ.d2s(epochcnt, 0);// + "_" + IJ.d2s(new Random().nextInt(Integer.MAX_VALUE),0);
+//                                                            Tools.createAndCleanDir(delindir);
+                                                            Tools.createDir(delindir);
                                                             remove_double_links(mtt.Y);
                                                             if (!is_biderectinal_linking(mtt.Y)) {
                                                                 IJ.log("missing link! fault in bidirectional linking");
                                                                 return;
                                                             }
 
-                                                            IJ.log("BFS exports " + mtt.Y.size() + " trees");
-
                                                             ArrayList<Node> tree = mtt.bfs1(mtt.Y, true);
                                                             exportReconstruction(tree, delindir, imnameshort); // export .swc   epochcnt, mtt.Y.size()-1,
 
+                                                            if (savemidres) {
+                                                                ImagePlus hpimp = getSuppMap();
+                                                                IJ.saveAs(hpimp, "Zip",midresdir + File.separator + "suppmap,r="+IJ.d2s(epochcnt, 0)+",i=" + IJ.d2s(iter_count+1, 0) + ".zip"); // "suppmap" + File.separator +
+                                                            }
+
                                                             // export time (preprocesing + filtering), publication report
-                                                            String timelogfile = imdir + "ndln.csv"; // imnameshort+
-                                                            String tilelogstring = imnameshort + "," + ( tprep + (t22-t1)/1000f ) + "," + "NDLN.sig.th.no.ro.ni.krad.stp.kapa.ps.pd.kc.e_" + sigmas + "_" + IJ.d2s(th[i09], 2) + "_" + IJ.d2s(no[i01], 0) + "_" + IJ.d2s(ro[i02], 0) + "_" + IJ.d2s(ni[i03], 0) + "_" + IJ.d2s(krad[i04], 0) + "_" + IJ.d2s(step[i05], 0) + "_" + IJ.d2s(kappa[i06], 1) + "_" + IJ.d2s(pS[i07], 2) + "_" + IJ.d2s(pD[i08], 2) + "_" + IJ.d2s(kc[i10], 1) + "_" + IJ.d2s(epochcnt, 0) + "_" + IJ.d2s(new Random().nextInt(Integer.MAX_VALUE),0);
-                                                            IJ.log(tilelogstring+"\nappend > "+timelogfile);
-                                                            try {
-                                                                PrintWriter wrt = new PrintWriter(new BufferedWriter(new FileWriter(timelogfile, true)));
-                                                                wrt.println(tilelogstring);
-                                                                wrt.close();
-                                                            } catch (IOException e) {}
+//                                                            String timelogfile = imdir + "ndln.csv"; // imnameshort+
+//                                                            String tilelogstring = imnameshort + "," + ( tprep + (t22-t1)/1000f ) + "," + "NDLN.sig.th.no.ro.ni.krad.stp.kapa.ps.pd.kc.e_" + sigmas + "_" + IJ.d2s(th[i09], 2) + "_" + IJ.d2s(no[i01], 0) + "_" + IJ.d2s(ro[i02], 0) + "_" + IJ.d2s(ni[i03], 0) + "_" + IJ.d2s(krad[i04], 0) + "_" + IJ.d2s(step[i05], 0) + "_" + IJ.d2s(kappa[i06], 1) + "_" + IJ.d2s(pS[i07], 2) + "_" + IJ.d2s(pD[i08], 2) + "_" + IJ.d2s(kc[i10], 1) + "_" + IJ.d2s(epochcnt, 0) + "_" + IJ.d2s(new Random().nextInt(Integer.MAX_VALUE),0);
+//                                                            IJ.log(tilelogstring+"\nappend > "+timelogfile);
+//                                                            try {
+//                                                                PrintWriter wrt = new PrintWriter(new BufferedWriter(new FileWriter(timelogfile, true)));
+//                                                                wrt.println(tilelogstring);
+//                                                                wrt.close();
+//                                                            } catch (IOException e) {}
                                                             // export time
 
                                                         }
-
-//                                                        if (true) {IJ.log("stop"); continue;} // don't do the rest (experimental)
 
                                                     } // while there are locations and epochs have not reached the limit
 
                                                     long t2 = System.currentTimeMillis();
                                                     IJ.log("done. " + IJ.d2s(((t2-t1)/1000f), 2) + "s. [maxiter=" + maxiter + ", maxepoch=" + maxepoch + "]");
 
-                                                    if (true && savemidres) {
+                                                    if (savemidres) {
                                                         exportDelineation(mtt.Y, midresdir, imnameshort);   // .ndln file
                                                         exportNodes(mtt.Y, midresdir, imnameshort);         // .swc file with isolated nodes
                                                     }
@@ -1017,7 +1164,7 @@ public class MTracker implements PlugIn {
 
     }
 
-    public ImagePlus getSuppMap(String title){
+    public ImagePlus getSuppMap(){ // String title
 
         ImageStack outis = new ImageStack(N, M);
 
@@ -1039,7 +1186,7 @@ public class MTracker implements PlugIn {
 
         }
 
-        return new ImagePlus(title, outis);
+        return new ImagePlus("", outis); // title
     }
 
     private int[] gethist(ImagePlus imp, boolean usestack) {

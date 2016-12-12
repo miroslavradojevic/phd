@@ -5,17 +5,21 @@ import com.braincadet.ndelin.swc.Node;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
+import ij.gui.OvalRoi;
+import ij.gui.Overlay;
 import ij.process.FloatProcessor;
 
+import java.awt.*;
 import java.io.*;
 import java.util.*;
+import java.util.List;
 
 public class MultiTT {
 
     Random rndgen = new Random();
 
     static float gcsstd_min = 1f;           // minimal gaussian cross section std.
-    static float sig2rad = 2.5f;            // how gaussian cross section relates to the tube radius
+    static float sig2rad = 1.5f;            // how gaussian cross section relates to the tube radius
     static float gcsstd_step = .5f;         // gaussian cross section standard dev. - step
     static int   ndirs2d = 20;              // 1/2 circle, radius=step
     static int   ndirs3d = 40;              // 1/2 sphere, radius=step
@@ -85,13 +89,37 @@ public class MultiTT {
     boolean[]       checked;
     ArrayList[]     nbridxs;
 
-    public boolean verbose = false; // to show the particle log
+    public boolean verbose = true; // to show the particle log
     public int R_supp = 0;
     public float gzx_sigma = 2f; // used in calculating likelihood, the distance towards measurement
     public static float weight_deg = 5;
-    public static float weight_deg77 = 2; // for init locations
+    public static float weight_deg77 = 5; // for init locations
     int MIN_CLUST_SIZE = -1; //(int) Math.round(0.1*x.size()); will refer to ni
     float wmin = 0.4f;
+
+    int suppmap_limit = 3; // once cummulative density stored in the suppression map becomes more than limit, new measurements are not added to avoid overtracing the same spatial structure
+    boolean ALLOW_MERGING = true;
+    // add refinement, resmpling and grouping
+
+    public static <T> List<T> mode(List<? extends T> coll) {
+        Map<T, Integer> seen = new HashMap<T, Integer>();
+        int max = 0;
+        List<T> maxElems = new ArrayList<T>();
+        for (T value : coll) {
+            if (seen.containsKey(value))
+                seen.put(value, seen.get(value) + 1);
+            else
+                seen.put(value, 1);
+            if (seen.get(value) > max) {
+                max = seen.get(value);
+                maxElems.clear();
+                maxElems.add(value);
+            } else if (seen.get(value) == max) {
+                maxElems.add(value);
+            }
+        }
+        return maxElems;
+    }
 
     public MultiTT(boolean is2d, int no, int ro, int ni, int krad, int step, float kappa, float pS, float pD, float cluttertness, float kclutt) {
 
@@ -646,6 +674,8 @@ public class MultiTT {
     }
 
     public void _init(int n, int radius, ArrayList<Integer> l, ArrayList<Float> w, ArrayList<int[]> N_o, float[] img, int N, int M, int P, float[] tness, int[] suppmap) {
+        // , Overlay template_ovrly
+        // template_ovrly.clear();
 
         ArrayList<Integer> l1 = new ArrayList<Integer>(); // make a copy
         l1.addAll(l);
@@ -681,6 +711,9 @@ public class MultiTT {
             int z = ii / (N * M);
             int y = ii / N - z * M;
 
+            // make sure it is not examined in the next round
+            suppmap[ii]++;
+
             float tmin = Float.POSITIVE_INFINITY;
             float tmax = Float.NEGATIVE_INFINITY;
 
@@ -697,12 +730,12 @@ public class MultiTT {
                 if (inimg) { // remove sampled particles from l1,w1, so that the next sampling goes elsewhere
                     int remidx = l1.indexOf(li);
                     if (remidx!=-1) {
-                        l1.remove(remidx); // won't be chosen as seed in this round
+                        l1.remove(remidx); // won't be chosen as seed in this sequence (round)
                         w1.remove(remidx);
                     }
                 }
 
-                stpr._pcws0[j] = (inimg && suppmap[li]==0)?tness[li]:0; // suppmap[li]==0 only here so that each object gets roughly ro particles
+                stpr._pcws0[j] = (inimg)?tness[li]:0; // ( && suppmap[li]==0) suppmap[li]==0 only here so that each object gets roughly ro particles
 
                 if (stpr._pcws0[j]<tmin) tmin = stpr._pcws0[j];
                 if (stpr._pcws0[j]>tmax) tmax = stpr._pcws0[j];
@@ -718,7 +751,7 @@ public class MultiTT {
             float wmass = stpr._pcws0[stpr._pcws0.length-1];
             if (wmass<=Float.MIN_VALUE) {
                 IJ.log("wmass["+x+","+y+","+z+";"+radius+"]=0");
-                suppmap[ii] = -1;
+//                suppmap[ii]++;// = -1;
                 continue;
             }
 
@@ -743,7 +776,7 @@ public class MultiTT {
                 int lj = zj*(N*M)+yj*N+xj;
                 boolean inimg = xj>=0 && xj<N && yj>=0 && yj<M && zj>=0 && zj<P;
 
-                if (inimg && suppmap[lj]==0) {
+                if (inimg) { //  && suppmap[lj]==0 if the samples are constrained by the suppresion map
 
                     X particle = new X(xj,yj,zj, Float.NaN,Float.NaN,Float.NaN, tness[lj], tness[lj]);
                     particle.tag = 0;
@@ -755,9 +788,9 @@ public class MultiTT {
                     zc += tness[lj] * zj;
 
                 }
-                else {
-                    IJ.log("SAMPLE out of img or on the supressed voxel.");
-                }
+//                else {
+//                    IJ.log("SAMPLE out of img or on the supressed voxel.");
+//                }
 
             }
 
@@ -790,9 +823,18 @@ public class MultiTT {
 
             N_o.add(new int[]{x, y, z});
 
+            // VIDEO DEMO
+//            OvalRoi template_oval = new OvalRoi(x-5f+.5f, y-5f+.5f, 10f, 10f);
+//            template_oval.setPosition(z+1);
+//            template_oval.setFillColor(Color.RED);
+//            template_oval.setStrokeColor(Color.RED);
+//            template_ovrly.add(template_oval);
+
             i++;
 
         }
+
+        IJ.log("PICKED === "+i);
 
         String log = "_init,\t";
         log+="|X|="+Xk.size()+", ";
@@ -808,7 +850,7 @@ public class MultiTT {
 
     }
 
-    public boolean _iter1(int N, int M, int P, float[] tness, int[] suppmap) {
+    public boolean _iter1(int N, int M, int P, float[] tness, int[] suppmap, Overlay template_ovrly) {
 
         String eventlog = "|X|="+ Xk.size() +" ";
 
@@ -869,7 +911,6 @@ public class MultiTT {
 
             //** ZPk particles **//
             float wmass = mm.pcws[mm.sz-1];
-//            IJ.log("check wmass 2 : " + wmass);
             float u1 = (wmass/ni)  * rndgen.nextFloat();
 
             int s = 0;
@@ -892,11 +933,13 @@ public class MultiTT {
 
                     tnessval = tness[ii];
                     // finally select those that were not suppressed (that don't overlap with previous particle trace)
-//                    if (suppmap[ii]==0) {
-                    particle = new X(xj,yj,zj, mm.u[s][0],mm.u[s][1],mm.u[s][2], 1f, tnessval);
-                    particle.tag = xp.tag;
-                    zpick.add(particle);
+//                    if (true) { // ==0 suppmap[ii]<=suppmap_limit
+                        particle = new X(xj,yj,zj, mm.u[s][0],mm.u[s][1],mm.u[s][2], 1f, tnessval);
+                        particle.tag = xp.tag;
+                        zpick.add(particle);
+                        // stop adding the measurements once that volume was traced densely enough
 //                    }
+
                 }
             }
 
@@ -938,7 +981,6 @@ public class MultiTT {
 
             //** XPk particles **//
             wmass = mm.pcws[mm.sz-1];
-//            IJ.log("check wmass 1 : " + wmass);
             u1 = (wmass/ni)  * rndgen.nextFloat();
 
             s = 0;
@@ -961,11 +1003,12 @@ public class MultiTT {
                     ii = zj*(N*M)+yj*N+xj;
 
                     tnessval = tness[ii];
-                    // finally select those that were not suppressed (that don't overlap with previous particle trace)
-//                    if (suppmap[ii]==0) {
-                    particle = new X(xj,yj,zj, mm.u[s][0],mm.u[s][1],mm.u[s][2], 1f, tnessval);
-                    particle.tag = xp.tag;
-                    xpick.add(particle);
+                    // select those that were not suppressed (that don't overlap with previous particle trace)
+//                    if (true || suppmap[ii]==0) {
+                        particle = new X(xj,yj,zj, mm.u[s][0],mm.u[s][1],mm.u[s][2], 1f, tnessval);
+                        particle.tag = xp.tag;
+                        xpick.add(particle);
+
 //                    }
                 }
             }
@@ -982,7 +1025,7 @@ public class MultiTT {
 
         } // go through Xk PHD particles
 
-        eventlog += "|XPk|= "+XPk.size()+" ";//+ "  XPk_cws[end]="+XPk_cws.get(XPk_cws.size()-1)+"  ZPk.size()="+ZPk.size()+"  ";
+        eventlog += "|XPk|= "+XPk.size()+" ";//+ "  XPk_cws[end]="+XPk_cws.get(XPk_cws.size()-1)+" ZPk.size()="+ZPk.size()+"  ";
 
         if (XPk.size()==0) {IJ.log("XPk.size()==0"); return false;}
         if (ZPk.size()==0) {IJ.log("ZPk.size()==0"); return false;}
@@ -990,7 +1033,7 @@ public class MultiTT {
         //-----------------------------------------------------------------------------
         //** measure **//
         Zk.clear();
-        measure(ZPk, kernel_radius, Y, N, M, tness, suppmap, Zk);
+        measure(ZPk, kernel_radius, Y, N, M, tness, suppmap, Zk); // uses the suppmap to filter the values of the obtained measurement particles
         eventlog += "|Z|=" + Zk.size() + " ";
 
         if (Zk.size()==0) {IJ.log("Zk.size()==0"); return false;}
@@ -1008,7 +1051,7 @@ public class MultiTT {
         //** estimate **//
         ArrayList<X> Rk = new ArrayList<X>();
         ArrayList<Float> Rcws = new ArrayList<Float>();  // XPk subsets used in the estimation
-        est(XPk, kernel_radius, MIN_CLUST_SIZE, Integer.MAX_VALUE, wmin, N, M, suppmap, Y, Rk, Rcws);
+        est(XPk, kernel_radius, MIN_CLUST_SIZE, Integer.MAX_VALUE, wmin, Y, Rk, Rcws, template_ovrly); // fill the suppmap out , N, M, suppmap
 
         if (Rk.size()==0) {IJ.log("Rk.size()==0"); return false;}
 
@@ -1016,11 +1059,15 @@ public class MultiTT {
 
         //** resample **//
         npcles = Math.round(phdmass)*ro;
-        resample(Rk, Rcws, npcles, phdmass/(float)npcles, Xk);
+        resample(Rk, Rcws, npcles, phdmass/(float)npcles, Xk); // est() needs one more output ArrayList<Integer> with Y node indexes of each Rk
 
         // now fill out the suppmap[] knowing XPk, Rk and Xk in the same way it was filled in est(),
-        // est() needs one more output ArrayList<Integer> with Y node indexes of each Rk
-        // apply current XPk to the suppmap
+        for (int i = 0; i < Xk.size(); i++) {
+            int x_supp = Math.round(Xk.get(i).x);
+            int y_supp = Math.round(Xk.get(i).y);
+            int z_supp = Math.round(Xk.get(i).z);
+            suppmap[z_supp*(N*M)+y_supp*N+x_supp]++;
+        }
 
         if (verbose) IJ.log(eventlog);
 
@@ -1083,21 +1130,20 @@ public class MultiTT {
 
         meanShift(zp, xw, dist);     // conv filled up
         clustering(zp.size(), 2f);   // labels filled up, nbridxs filled up
-        group_measurement(zp, zp.size(), MIN_CLUST_SIZE, Integer.MAX_VALUE, Yprev, N, M, tness, suppmap, zout); // zc
+        group_measurement(zp, zp.size(), MIN_CLUST_SIZE, Yprev, N, M, tness, suppmap, zout); // zc , Integer.MAX_VALUE
 
     }
 
     private void group_measurement(
-            ArrayList<X> zp,
+            ArrayList<X> zp,       // measurement particles
             int zpLen,
             int nclust_min,
-            int nclust_max,
+//            int nclust_max,
             ArrayList<Node> Yprev,
             int N, int M,
             float[] tness,
             int[] suppmap,
-            ArrayList<X> z//,
-//            ArrayList<ArrayList<Integer>> zc
+            ArrayList<X> z         // measurement output, zp //, ArrayList<ArrayList<Integer>> zc
     ) {
 
         // no need for estimation of the centroid, conv[][] is not used, meanShift() has clustering role
@@ -1106,51 +1152,54 @@ public class MultiTT {
         for (int i = 0; i < ZPCk.size(); i++) ZPCk.get(i).clear();
         ZPCk.clear();
 
-        ArrayList<Integer> cnt = new ArrayList<Integer>(); // only used for sorting
+//        ArrayList<Integer> cnt = new ArrayList<Integer>(); // only used for sorting
 
         for (int i = 0; i < zpLen; i++) {
 
             if (!checked[i]) {
+
                 checked[i] = true;
 
                 ArrayList<Integer> clsidxs = new ArrayList<Integer>();
                 clsidxs.add(i);
-                boolean notSupp = suppmap[Math.round(zp.get(i).z)*(N*M)+Math.round(zp.get(i).y)*N+Math.round(zp.get(i).x)]==0;
+                boolean notSupp = suppmap[Math.round(zp.get(i).z)*(N*M)+Math.round(zp.get(i).y)*N+Math.round(zp.get(i).x)]<=suppmap_limit;// suppmap[Math.round(zp.get(i).z)*(N*M)+Math.round(zp.get(i).y)*N+Math.round(zp.get(i).x)]==0;
 
-                for (int j = i+1; j < zpLen; j++) { // check the rest
+                for (int j = i+1; j < zpLen; j++) { // check the rest from the same cluster
                     if (!checked[j] && labels[j]==labels[i]) {
                         checked[j] = true;
                         clsidxs.add(j);
-                        notSupp = notSupp || (suppmap[Math.round(zp.get(j).z)*(N*M)+Math.round(zp.get(j).y)*N+Math.round(zp.get(j).x)]==0);
+                        notSupp = notSupp || (suppmap[Math.round(zp.get(j).z)*(N*M)+Math.round(zp.get(j).y)*N+Math.round(zp.get(j).x)]<=suppmap_limit);
                     }
                 }
 
-                if (clsidxs.size()>=nclust_min  && notSupp) { // cluster had enough samples and at least one that did not overlap with suppmap[]
-                    cnt.add(clsidxs.size());
+                if (clsidxs.size()>=nclust_min  && notSupp) { // cluster had enough samples and at least one measurement sample that was below the density threshold (suppmap[] value below thr.) did not overlap with suppmap[]
+//                    cnt.add(clsidxs.size());
                     ZPCk.add(clsidxs);
                 }
             }
         }
 
+//        IJ.log(ZPCk.size()+" clusters added in group_measurement()");
+
         // sort clusters by the amount of particles in the cluster
-        int[] desc_idx = Tools.descending(cnt); // cnt will be modified too todo: not necessary really
+//        int[] desc_idx = Tools.descending(cnt); // cnt will be modified too todo: not necessary to sort really
 
-        ArrayList<Float> zsc        = new ArrayList<Float>(ZPCk.size());        // score per cluster
-        ArrayList<Integer> zsc_idx  = new ArrayList<Integer>(ZPCk.size());  // selected index per cluster
+        ArrayList<Float>    zsc         = new ArrayList<Float>(ZPCk.size());            // score per cluster
+        ArrayList<Integer>  zsc_idx     = new ArrayList<Integer>(ZPCk.size());            // selected index per cluster
 
-        for (int ii=0; ii<Math.min(nclust_max,ZPCk.size()); ii++) {
+        for (int ii=0; ii<ZPCk.size(); ii++) { // Math.min(nclust_max,ZPCk.size())
 
-            int ci = desc_idx[ii]; // go from the highest, take cluster index
+//            int ci = ii;//desc_idx[ii]; // go from the highest, take cluster index
 
             float sc = Float.POSITIVE_INFINITY;
             int sc_idx = -1;
 
-            for (int i = 0; i < ZPCk.get(ci).size(); i++) { // go through elements of one cluster, there should be at least one that's not overlapping with suppmap[]
+            for (int i = 0; i < ZPCk.get(ii).size(); i++) { // go through elements of one cluster, there should be at least one that's not overlapping with suppmap[]
 
-                int xii = ZPCk.get(ci).get(i);
+                int xii = ZPCk.get(ii).get(i); // take the zp index of the element from the
                 X xi = zp.get(xii);
 
-                if (suppmap[Math.round(xi.z)*(N*M)+Math.round(xi.y)*N+Math.round(xi.x)]==0) { // should happen at least once
+//                if (suppmap[Math.round(xi.z)*(N*M)+Math.round(xi.y)*N+Math.round(xi.x)]==0) { // should happen at least once
 
                     float a1x = Yprev.get(xi.tag).loc[0];
                     float a1y = Yprev.get(xi.tag).loc[1];
@@ -1162,10 +1211,10 @@ public class MultiTT {
 
                     float score = 0;
 
-                    for (int j = 0; j < ZPCk.get(ci).size(); j++) {
+                    for (int j = 0; j < ZPCk.get(ii).size(); j++) {
                         if (j!=i) {
 
-                            X xj = zp.get(ZPCk.get(ci).get(j));
+                            X xj = zp.get(ZPCk.get(ii).get(j));
 
                             float a0x = xj.x;
                             float a0y = xj.y;
@@ -1180,7 +1229,7 @@ public class MultiTT {
                         sc = score;   // update score
                         sc_idx = xii; // update index
                     }
-                } // if it was not overlapping
+//                } // if it was not overlapping
             } // loop cluster
 
             zsc.add(sc);
@@ -1201,10 +1250,12 @@ public class MultiTT {
             int y_Z = Math.round(zp.get( zsc_idx.get(i) ).y);
             int z_Z = Math.round(zp.get( zsc_idx.get(i) ).z);
 
-            X xtt = new X(zp.get(zsc_idx.get(i)));
-            xtt.tness = tness[z_Z*(N*M)+y_Z*(N)+x_Z];
-            z.add(xtt);
-
+            // here check the addition to the measurement list
+            if (suppmap[z_Z*(N*M)+y_Z*(N)+x_Z]<=suppmap_limit) { // if the optimal point from the cluster was on the volume below density limit
+                X xtt = new X(zp.get(zsc_idx.get(i)));
+                xtt.tness = tness[z_Z*(N*M)+y_Z*(N)+x_Z];
+                z.add(xtt);
+            }
 //            if (x_Z>=0 && x_Z<N && y_Z>=0 && y_Z<M && z_Z>=0 && z_Z<P)
 //                if (suppmap[z_Z*(N*M)+y_Z*(N)+x_Z]==0 || true)
         }
@@ -1377,12 +1428,13 @@ public class MultiTT {
             int nclust_min,
             int nclust_max,
             float wmin,
-            int N,
-            int M,
-            int[] suppmap,
+//            int N,
+//            int M,
+//            int[] suppmap,
             ArrayList<Node> y,
             ArrayList<X> Rk,
-            ArrayList<Float> Rcws
+            ArrayList<Float> Rcws,
+            Overlay template_ovrly
     ) {
 
         // cluster weighted phd particles
@@ -1390,7 +1442,7 @@ public class MultiTT {
 
         meanShift(x, xw, kradius);
         clustering(x.size(), 2f);
-        group_estimate(x, nclust_min, nclust_max, wmin, N, M, suppmap, y, Rk, Rcws);
+        group_estimate(x, nclust_min, wmin, y, Rk, Rcws); // template_ovrly   , N, M, suppmap   nclust_max,
 
     }
 
@@ -1698,8 +1750,8 @@ public class MultiTT {
 
                                     if (xi>=0 && xi<N && yi>=0 && yi<M && zi>=0 && zi<P) {
                                         int ii = zi*(N*M)+yi*N+xi;
-                                        if (suppmap[ii]==0)
-                                            suppmap[ii] = newtag;
+                                        suppmap[ii] = suppmap[ii] + 1; // increment the density (will be used to prevent re-tracing)
+//                                        if (suppmap[ii]==0) suppmap[ii] = newtag; // don't assign with a tag but the density map, increment the density map
                                     }
                                 }
                             }
@@ -1729,15 +1781,17 @@ public class MultiTT {
     private void group_estimate(
             ArrayList<X> xin,
             int count_min,
-            int nclust_max,
+//            int nclust_max,
             float wmin,
-            int N,
-            int M,
-            int[] suppmap,
+//            int N,
+//            int M,
+//            int[] suppmap,
             ArrayList<Node> nout,
             ArrayList<X> Rk,
-            ArrayList<Float> Rcws
+            ArrayList<Float> Rcws //, Overlay template_ovrly
     ) {
+
+//        template_ovrly.clear();
 
         Rk.clear();
         Rcws.clear();
@@ -1801,15 +1855,51 @@ public class MultiTT {
                         cy /= wsum;
                         cz /= wsum;
 
-                        Set<Integer> set = new HashSet<Integer>();
-                        set.addAll(tags);
-                        tags.clear();
-                        tags.addAll(set);
+//                        IJ.log("group_estimate()...");
+//                        String l1 = "[ ";
+//                        for (int j = 0; j < tags.size(); j++) {
+//                            l1+=IJ.d2s(tags.get(j),0)+" ";
+//                        }
+//                        l1+=" ]";
+//                        IJ.log(l1);
+
+
+
+                        // tags list... linking backwards - possible to allow merging or not to allow merging
+
+
+                        if (ALLOW_MERGING) { // allow merging, remove duplicates only
+                            Set<Integer> set = new HashSet<Integer>();
+                            set.addAll(tags);
+                            tags.clear();
+                            tags.addAll(set);
+                        }
+                        else { // no merging, take the most numerous tag
+                            int tags_mode = mode(tags).get(0);
+                            tags.clear();
+                            tags.add(tags_mode);
+                        }
+
+//                        if (tags.size()>1) { // if there are more than 1 elements...
+//                            String l2 = "{ ";
+//                            for (int j = 0; j < tags.size(); j++) {
+//                                l2+=IJ.d2s(tags.get(j),0)+" ";
+//                            }
+//                            l2+=" }";
+//                            IJ.log(l2);
+//                        }
 
                         //** add the node **//
                         Node nn = new Node(cx, cy, cz, 1f); // rr
                         int newtag = nout.size();
                         nout.add(nn);
+
+                        // VIDEO DEMO
+//                        OvalRoi template_oval = new OvalRoi(cx-5f+.5f, cy-5f+.5f, 10f, 10f);
+//                        template_oval.setPosition(Math.round(cz)+1);
+//                        template_oval.setFillColor(Color.YELLOW);
+//                        template_oval.setStrokeColor(Color.YELLOW);
+//                        template_ovrly.add(template_oval);
 
                         for (int j = 0; j < tags.size(); j++) {
                             nout.get(newtag).nbr.add(tags.get(j));
@@ -1821,6 +1911,7 @@ public class MultiTT {
                             //** assign new tag to the particles of the cluster **//
                             xin.get(xidx.get(j)).tag = newtag;
 
+                            // DEBUG line
                             if (Float.isNaN(xin.get(xidx.get(j)).vx) || Float.isNaN(xin.get(xidx.get(j)).vy) || Float.isNaN(xin.get(xidx.get(j)).vz))
                             {IJ.log("Float.isNaN(xin.get(xidx.get(j)).vx) || Float.isNaN(xin.get(xidx.get(j)).vy) || Float.isNaN(xin.get(xidx.get(j)).vz)=TRUE");}
 
@@ -1829,14 +1920,6 @@ public class MultiTT {
 
                             if (Rcws.size()==0) Rcws.add(xin.get(xidx.get(j)).w);
                             else                Rcws.add(xin.get(xidx.get(j)).w + Rcws.get(Rcws.size() - 1));
-
-                            //** fill suppmap with selected particles **//
-                            int xi = Math.round(xin.get(xidx.get(j)).x);
-                            int yi = Math.round(xin.get(xidx.get(j)).y);
-                            int zi = Math.round(xin.get(xidx.get(j)).z);
-                            suppmap[zi*(N*M)+yi*N+xi] = newtag;
-
-                            // for (int k = 0; k < offxyz[R_supp].length; k++)
 
                         }
 
@@ -1901,6 +1984,8 @@ public class MultiTT {
 
     }
 
+
+    // obsolete!!
     public static int[] cluster(ArrayList<X> Xlist, double ddist) {
 
         int[] labels = new int[Xlist.size()];
@@ -1950,6 +2035,7 @@ public class MultiTT {
 
     }
 
+    // obsolete!
     public static ArrayList<Z> extract(int[] labels, ArrayList<X> vals) { //int[] vals
 
         boolean[] checked = new boolean[labels.length];
