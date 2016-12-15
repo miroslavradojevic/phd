@@ -1,7 +1,7 @@
 package com.braincadet.ndelin.demo;
 
-import com.braincadet.ndelin.fun.Tools;
-import com.braincadet.ndelin.multi.Stepper;
+import com.braincadet.phd.fun.Tools;
+import com.braincadet.phd.multi.Stepper;
 import ij.IJ;
 import ij.gui.GenericDialog;
 import ij.plugin.PlugIn;

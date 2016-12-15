@@ -1,4 +1,4 @@
-package com.braincadet.ndelin.fun;
+package com.braincadet.phd.fun;
 
 import java.util.ArrayList;
 

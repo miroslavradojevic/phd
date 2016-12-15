@@ -1,4 +1,4 @@
-package com.braincadet.ndelin.multi;
+package com.braincadet.phd.multi;
 
 /**
  * Created by miroslav on 10/25/15.

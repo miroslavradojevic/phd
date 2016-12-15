@@ -1,4 +1,4 @@
-package com.braincadet.ndelin.fun;
+package com.braincadet.phd.fun;
 
 /**
  * Evaluate Bessel function J, Yk, I, K of integer order.

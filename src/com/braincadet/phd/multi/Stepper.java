@@ -1,7 +1,7 @@
-package com.braincadet.ndelin.multi;
+package com.braincadet.phd.multi;
 
-import com.braincadet.ndelin.fun.Bessel;
-import com.braincadet.ndelin.fun.Tools;
+import com.braincadet.phd.fun.Bessel;
+import com.braincadet.phd.fun.Tools;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;

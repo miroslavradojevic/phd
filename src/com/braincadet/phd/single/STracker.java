@@ -1,4 +1,4 @@
-package com.braincadet.ndelin.single;
+package com.braincadet.phd.single;
 
 import ij.IJ;
 import ij.ImagePlus;

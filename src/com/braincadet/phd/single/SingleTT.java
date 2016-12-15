@@ -1,4 +1,4 @@
-package com.braincadet.ndelin.single;
+package com.braincadet.phd.single;
 
 /*
 Copyright (C) Erasmus MC. Permission to use this software and corresponding documentation for educational, research, and not-for-profit purposes, without a fee and without a signed licensing agreement, is granted, subject to the following terms and conditions.
@@ -8,7 +8,7 @@ THE COPYRIGHT HOLDER SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT L
 Created by miroslav on 9/21/15.
 */
 
-import com.braincadet.ndelin.fun.Tools;
+import com.braincadet.phd.fun.Tools;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;

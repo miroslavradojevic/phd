@@ -1,4 +1,4 @@
-package com.braincadet.ndelin.multi;
+package com.braincadet.phd.multi;
 
 import ij.IJ;
 

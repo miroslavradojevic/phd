@@ -1,15 +1,13 @@
-package com.braincadet.ndelin.multi;
+package com.braincadet.phd.multi;
 
-import com.braincadet.ndelin.fun.Tools;
-import com.braincadet.ndelin.swc.Node;
+import com.braincadet.phd.fun.Tools;
+import com.braincadet.phd.swc.Node;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
-import ij.gui.OvalRoi;
 import ij.gui.Overlay;
 import ij.process.FloatProcessor;
 
-import java.awt.*;
 import java.io.*;
 import java.util.*;
 import java.util.List;
@@ -93,7 +91,7 @@ public class MultiTT {
     public int R_supp = 0;
     public float gzx_sigma = 2f; // used in calculating likelihood, the distance towards measurement
     public static float weight_deg = 5;
-    public static float weight_deg77 = 5; // for init locations
+//    public static float weight_deg77 = 5; // for init locations
     int MIN_CLUST_SIZE = -1; //(int) Math.round(0.1*x.size()); will refer to ni
     float wmin = 0.4f;
 
@@ -850,7 +848,7 @@ public class MultiTT {
 
     }
 
-    public boolean _iter1(int N, int M, int P, float[] tness, int[] suppmap, Overlay template_ovrly) {
+    public boolean _iter1(int N, int M, int P, float[] tness, int[] suppmap) { // multi-object detection video demo: , Overlay template_ovrly
 
         String eventlog = "|X|="+ Xk.size() +" ";
 
@@ -1051,7 +1049,9 @@ public class MultiTT {
         //** estimate **//
         ArrayList<X> Rk = new ArrayList<X>();
         ArrayList<Float> Rcws = new ArrayList<Float>();  // XPk subsets used in the estimation
-        est(XPk, kernel_radius, MIN_CLUST_SIZE, Integer.MAX_VALUE, wmin, Y, Rk, Rcws, template_ovrly); // fill the suppmap out , N, M, suppmap
+
+        est(XPk, kernel_radius, MIN_CLUST_SIZE, Integer.MAX_VALUE, wmin, Y, Rk, Rcws); // fill the suppmap out , N, M, suppmap
+        // multi-object detection video demo:, template_ovrly
 
         if (Rk.size()==0) {IJ.log("Rk.size()==0"); return false;}
 
@@ -1135,15 +1135,14 @@ public class MultiTT {
     }
 
     private void group_measurement(
-            ArrayList<X> zp,       // measurement particles
+            ArrayList<X> zp,    // measurement particles
             int zpLen,
             int nclust_min,
-//            int nclust_max,
             ArrayList<Node> Yprev,
             int N, int M,
             float[] tness,
-            int[] suppmap,
-            ArrayList<X> z         // measurement output, zp //, ArrayList<ArrayList<Integer>> zc
+            int[] suppmap,      // used to suppress the mesurements over the traced volume
+            ArrayList<X> z      // measurement output, zp //, ArrayList<ArrayList<Integer>> zc
     ) {
 
         // no need for estimation of the centroid, conv[][] is not used, meanShift() has clustering role
@@ -1162,7 +1161,8 @@ public class MultiTT {
 
                 ArrayList<Integer> clsidxs = new ArrayList<Integer>();
                 clsidxs.add(i);
-                boolean notSupp = suppmap[Math.round(zp.get(i).z)*(N*M)+Math.round(zp.get(i).y)*N+Math.round(zp.get(i).x)]<=suppmap_limit;// suppmap[Math.round(zp.get(i).z)*(N*M)+Math.round(zp.get(i).y)*N+Math.round(zp.get(i).x)]==0;
+                boolean notSupp = suppmap[Math.round(zp.get(i).z)*(N*M)+Math.round(zp.get(i).y)*N+Math.round(zp.get(i).x)]<=suppmap_limit;
+                // suppmap[Math.round(zp.get(i).z)*(N*M)+Math.round(zp.get(i).y)*N+Math.round(zp.get(i).x)]==0;
 
                 for (int j = i+1; j < zpLen; j++) { // check the rest from the same cluster
                     if (!checked[j] && labels[j]==labels[i]) {
@@ -1433,8 +1433,8 @@ public class MultiTT {
 //            int[] suppmap,
             ArrayList<Node> y,
             ArrayList<X> Rk,
-            ArrayList<Float> Rcws,
-            Overlay template_ovrly
+            ArrayList<Float> Rcws// ,
+//            Overlay template_ovrly    multi-object detection video demo
     ) {
 
         // cluster weighted phd particles
@@ -1442,7 +1442,7 @@ public class MultiTT {
 
         meanShift(x, xw, kradius);
         clustering(x.size(), 2f);
-        group_estimate(x, nclust_min, wmin, y, Rk, Rcws); // template_ovrly   , N, M, suppmap   nclust_max,
+        group_estimate(x, nclust_min, wmin, y, Rk, Rcws); // template_ovrly (used in multi-object detection video demo)  , N, M, suppmap   nclust_max,
 
     }
 
@@ -1788,7 +1788,7 @@ public class MultiTT {
 //            int[] suppmap,
             ArrayList<Node> nout,
             ArrayList<X> Rk,
-            ArrayList<Float> Rcws //, Overlay template_ovrly
+            ArrayList<Float> Rcws //, Overlay template_ovrly (in multi-object detection video demo)
     ) {
 
 //        template_ovrly.clear();
