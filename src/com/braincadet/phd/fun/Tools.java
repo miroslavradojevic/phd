@@ -1,6 +1,6 @@
-package com.braincadet.ndelin.fun;
+package com.braincadet.phd.fun;
 
-import com.braincadet.ndelin.multi.X;
+import com.braincadet.phd.multi.X;
 import ij.IJ;
 
 import java.io.File;
