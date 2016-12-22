@@ -1,4 +1,4 @@
-package com.braincadet.phd.multi;
+package com.braincadet.phd;
 
 import ij.IJ;
 

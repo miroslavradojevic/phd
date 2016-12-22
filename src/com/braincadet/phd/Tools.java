@@ -1,7 +1,4 @@
-package com.braincadet.phd.fun;
-
-import com.braincadet.phd.multi.X;
-import ij.IJ;
+package com.braincadet.phd;
 
 import java.io.File;
 import java.io.FileNotFoundException;
