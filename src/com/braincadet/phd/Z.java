@@ -1,4 +1,4 @@
-package com.braincadet.phd.multi;
+package com.braincadet.phd;
 
 /**
  * Created by miroslav on 10/25/15.

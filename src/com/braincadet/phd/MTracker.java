@@ -1,20 +1,12 @@
 package com.braincadet.phd;
 
-import com.braincadet.phd.fun.Tools;
-import com.braincadet.phd.multi.MultiTT;
-import com.braincadet.phd.multi.X;
-import com.braincadet.phd.swc.Node;
 import features.TubenessProcessor;
 import ij.*;
 import ij.gui.GenericDialog;
-import ij.gui.OvalRoi;
-import ij.gui.Overlay;
-import ij.io.FileSaver;
 import ij.io.OpenDialog;
 import ij.measure.Measurements;
 import ij.plugin.ImageCalculator;
 import ij.plugin.PlugIn;
-import ij.plugin.ZProjector;
 import ij.plugin.filter.MaximumFinder;
 import ij.process.*;
 
@@ -24,13 +16,9 @@ import java.util.*;
 
 public class MTracker implements PlugIn {
 
-    // color coding for the swc rendering as in Vaa3D swc visualization (www.vaa3d.org)
-    static int WHITE = 0, BLACK = 1, RED = 2, BLUE = 3, VIOLET = 4, MAGENTA = 5, YELLOW = 6, GREEN = 7, OCHRE = 8, WEAK_GREEN = 9, PINK = 10, BLUEBERRY = 12;
+//    static int WHITE = 0, BLACK = 1, RED = 2, BLUE = 3, VIOLET = 4, MAGENTA = 5, YELLOW = 6, GREEN = 7, OCHRE = 8, WEAK_GREEN = 9, PINK = 10, BLUEBERRY = 12;
 
-    AutoThresholder.Method thmethod = AutoThresholder.Method.IsoData; // IsoData Moments Otsu Triangle Default
-
-    // allow having array of comma separated parameter inputs for the tubularity measure
-    String sigmas = "2,3";              // comma separated scale values (tubularity)
+    String sigmas = "2,4,6";              // comma separated scale values (tubularity)
 
     // one sigmas tubularity image can be called for sequence of parameters (comma separated values)
     // parameter lists (string + array with extracted values)
@@ -65,9 +53,6 @@ public class MTracker implements PlugIn {
     String kc_csv = "4";
 
     int maxepoch = 10;                  // epoch limit
-//    String maxepoch_csv = "";         // comma separated input
-
-    int TUBE_RADIUS = 3;                // used at _init(), radius of the sphere used for the seed point
 
     // save results
     int maxiter = 200;              // iteration limit (hundreds are fine)
@@ -114,6 +99,9 @@ public class MTracker implements PlugIn {
     }
 
     public void run(String s) {
+
+//        IJ.log("testing234...");
+//        if (true) return;
 
         // read input image, store the most recent path in Prefs
         String in_folder = Prefs.get("com.braincadet.phd.dir", System.getProperty("user.home"));
@@ -200,8 +188,8 @@ public class MTracker implements PlugIn {
             gd.addStringField("kc", Prefs.get("com.braincadet.phd.kc", kc_csv), 10);
             gd.addNumericField("maxiter", Prefs.get("com.braincadet.phd.maxiter", maxiter), 0, 5, "");
             gd.addStringField("maxepoch", Prefs.get("com.braincadet.phd.maxepoch", Integer.toString(maxepoch)), 10);
-            gd.addCheckbox("savemidres", Prefs.get("com.braincadet.phd.savemidres", savemidres));
-            gd.addCheckbox("usetness", Prefs.get("com.braincadet.phd.usetness", usetness));
+//            gd.addCheckbox("savemidres", Prefs.get("com.braincadet.phd.savemidres", savemidres));
+//            gd.addCheckbox("usetness", Prefs.get("com.braincadet.phd.usetness", usetness));
 
             gd.showDialog();
             if (gd.wasCanceled()) return;
@@ -231,12 +219,12 @@ public class MTracker implements PlugIn {
             maxiter = (int) gd.getNextNumber();
             Prefs.set("com.braincadet.phd.maxiter", maxiter);
             String maxepoch_str = gd.getNextString();
-            maxepoch = (maxepoch_str.equals("Inf")) ? Integer.MAX_VALUE : Integer.valueOf(maxepoch_str);
+            maxepoch = (maxepoch_str.equals("inf")) ? Integer.MAX_VALUE : Integer.valueOf(maxepoch_str);
             Prefs.set("com.braincadet.phd.maxepoch", maxepoch);
-            savemidres = gd.getNextBoolean();
-            Prefs.set("com.braincadet.phd.savemidres", savemidres);
-            usetness = gd.getNextBoolean();
-            Prefs.set("com.braincadet.phd.usetness", usetness);
+//            savemidres = gd.getNextBoolean();
+//            Prefs.set("com.braincadet.phd.savemidres", savemidres);
+//            usetness = gd.getNextBoolean();
+//            Prefs.set("com.braincadet.phd.usetness", usetness);
 
         } else {
 
@@ -253,13 +241,13 @@ public class MTracker implements PlugIn {
             kc_csv = Macro.getValue(Macro.getOptions(), "kc", kc_csv);
             maxiter = Integer.valueOf(Macro.getValue(Macro.getOptions(), "maxiter", String.valueOf(maxiter)));
             String maxepoch_str = Macro.getValue(Macro.getOptions(), "maxepoch", String.valueOf(maxepoch));
-            maxepoch = (maxepoch_str.equals("Inf")) ? Integer.MAX_VALUE : Integer.valueOf(maxepoch_str);
-            savemidres = Boolean.valueOf(Macro.getValue(Macro.getOptions(), "savemidres", String.valueOf(false)));
-            usetness = Boolean.valueOf(Macro.getValue(Macro.getOptions(), "usetness", String.valueOf(true)));
+            maxepoch = (maxepoch_str.equals("inf")) ? Integer.MAX_VALUE : Integer.valueOf(maxepoch_str);
+//            savemidres = Boolean.valueOf(Macro.getValue(Macro.getOptions(), "savemidres", String.valueOf(false)));
+//            usetness = Boolean.valueOf(Macro.getValue(Macro.getOptions(), "usetness", String.valueOf(true)));
         }
 
         if (savemidres) {
-            midresdir = ip_load.getOriginalFileInfo().directory + ip_load.getTitle() + "_midres";//File.separator +
+            midresdir = ip_load.getOriginalFileInfo().directory + ip_load.getTitle() + "_midres";
             Tools.createAndCleanDir(midresdir); // create midresult dir and initialize export/log
         }
 
@@ -316,11 +304,6 @@ public class MTracker implements PlugIn {
         kc = new float[dd.length];
         for (int i = 0; i < dd.length; i++) kc[i] = Float.valueOf(dd[i]);
 
-//        dd = maxepoch_csv.split(","); if (dd.length==0) return;
-//        maxepoch = new int[dd.length];
-//        for (int i = 0; i < dd.length; i++) maxepoch[i] = Integer.valueOf(dd[i]);
-//        if (true) {IJ.log("ok, maxepoch = " + maxepoch); return;}
-
         //******************************************************************
         ImageStack is_tness;
         ImagePlus ip_tness;
@@ -341,11 +324,10 @@ public class MTracker implements PlugIn {
 
         for (int i = 0; i < readLn.length; i++) {
             float sig = Float.valueOf(readLn[i].trim()).floatValue();
-            IJ.log("sig=" + IJ.d2s(sig,2));
             TubenessProcessor tp = new TubenessProcessor(sig, false);
             ImagePlus result = tp.generateImage(ip_load);
             ImageCalculator ic = new ImageCalculator();
-            // average
+            // average, multipy tubularity values at different scales...
 //          IJ.run(result, "Multiply...", "value=" + IJ.d2s(1f/readLn.length,3) + " stack");
 //          ic.run("Add 32-bit stack", ip_tness, result); // result of the addition is placed in ip_tness
             // max
@@ -357,15 +339,14 @@ public class MTracker implements PlugIn {
         if (savemidres) {
             ImagePlus temp = ip_tness.duplicate();
             IJ.run(temp, "8-bit", ""); // convert to 8 bit before saving
-//                IJ.log("saving... " + midresdir + File.separator + "tness," + sigmas + ".tif");
-            IJ.saveAs(temp, "Tiff", midresdir + File.separator + "tness," + sigmas + ".tif");
+            IJ.saveAs(temp, "Zip", midresdir + File.separator + "tness," + sigmas + ".zip");
         }
 
         // tubeness min-max normalize and store in an array for later and extract locations in a separate array
         float tnessmin = Float.POSITIVE_INFINITY;
         float tnessmax = Float.NEGATIVE_INFINITY;
         tness = new float[SZ];
-        int[][] locationXYZ = new int[SZ][3]; // random sampling weighted with the normalized tness as importance function
+        int[][] locationXYZ = new int[SZ][3]; // random sampling weighted with the normalized tubeness as importance function
 
         for (int z = 1; z <= P; z++) { // layer count, zcoord is layer-1
 
@@ -402,9 +383,9 @@ public class MTracker implements PlugIn {
         }
 
         long t2prep = System.currentTimeMillis();
-        IJ.log("t_preprocessing" + IJ.d2s((t2prep - t1prep) / 1000f,2) + "[sec]");
+        IJ.log("t_prep = " + IJ.d2s((t2prep - t1prep) / 1000f,2) + " [sec]");
 
-        suppmap = new int[SZ];         // suppression map with node tags
+        suppmap = new int[SZ]; // suppression map with node tags
 
         // go through comma separated parameter values
         for (int i01 = 0; i01 < no.length; i01++) {
@@ -415,14 +396,11 @@ public class MTracker implements PlugIn {
                             for (int i06 = 0; i06 < kappa.length; i06++) {
                                 for (int i07 = 0; i07 < pS.length; i07++) {
                                     for (int i08 = 0; i08 < pD.length; i08++) {
-                                        for (int i09 = 0; i09 < th.length; i09++) { // todo: change threshold into local maxima sensitivity
+                                        for (int i09 = 0; i09 < th.length; i09++) {
                                             for (int i10 = 0; i10 < kc.length; i10++) {
-//                                                for (int i11 = 0; i11 < maxepoch.length; i11++) {
-
-                                                long t1 = System.currentTimeMillis();
 
                                                 if (savemidres) {
-                                                    Tools.createAndCleanDir(midresdir + File.separator + "g(z|x)");
+//                                                    Tools.createAndCleanDir(midresdir + File.separator + "g(z|x)");
                                                     Tools.createAndCleanDir(midresdir + File.separator + "suppmap");
                                                     Tools.createAndCleanDir(midresdir + File.separator + "objects");
 
@@ -452,10 +430,8 @@ public class MTracker implements PlugIn {
 
 //                                                    ImagePlus impool = ip_tness.duplicate();//(usetness)?ip_tness.duplicate():ip_load.duplicate();
 //                                                    IJ.run(impool, "8-bit", "");
-
 //                                                    int threshold = (int) Math.ceil(th[i09] * 255);
 //                                                    applythreshold(threshold, impool);
-
 //                                                    Prefs.blackBackground = true;
 //                                                    IJ.run(impool, "Skeletonize", "stack");
 
@@ -481,7 +457,7 @@ public class MTracker implements PlugIn {
 //                                                            IJ.log("[x,y]="+maxx.xpoints[i]+", "+maxx.ypoints[i]);
                                                         int ii = (z - 1) * (N * M) + maxx.ypoints[i] * N + maxx.xpoints[i];
                                                         locs.add(ii);
-                                                        locsw.add((float) Math.pow(tness[ii], MultiTT.weight_deg)); // 1f (float) Math.pow(tness[ii], MultiTT.weight_deg77)
+                                                        locsw.add((float) Math.pow(tness[ii], MultiTT.weight_deg));
                                                     }
 //                                                        for (int x = 0; x < N; x++) {
 //                                                            for (int y = 0; y < M; y++) {
@@ -521,7 +497,7 @@ public class MTracker implements PlugIn {
 //                                                        ip_load.setOverlay(ov);
 //                                                        IJ.saveAs(ip_load, "TIFF", midresdir + File.separator + "t0.tif");
 
-                                                    exportlocsxyz(tt, 0.3f, VIOLET, midresdir, "seedpool_tolerance=" + IJ.d2s(th[i09], 2));
+                                                    exportlocsxyz(tt, 0.3f, Node.VIOLET, midresdir, "seedpool_tolerance=" + IJ.d2s(th[i09], 2));
 
                                                     tt.clear();
                                                 }
@@ -547,8 +523,24 @@ public class MTracker implements PlugIn {
 //                                                template_ovrly = new Overlay();
 //                                                template_zprojector = new ZProjector();
                                                 //******************************************************************
+
+                                                // output directory name contains parameters
+                                                String delindir = imdir + "PHD.sig.th.no.ro.ni.krad.stp.kapa.ps.pd.kc.e_" +
+                                                        sigmas                  + "_" +
+                                                        IJ.d2s(th[i09], 2)      + "_" +
+                                                        IJ.d2s(no[i01], 0)      + "_" +
+                                                        IJ.d2s(ro[i02], 0)      + "_" +
+                                                        IJ.d2s(ni[i03], 0)      + "_" +
+                                                        IJ.d2s(krad[i04], 0)    + "_" +
+                                                        IJ.d2s(step[i05], 0)    + "_" +
+                                                        IJ.d2s(kappa[i06], 1)   + "_" +
+                                                        IJ.d2s(pS[i07], 2)      + "_" +
+                                                        IJ.d2s(pD[i08], 2)      + "_" +
+                                                        IJ.d2s(kc[i10], 1)      + "_";
+
+
                                                 IJ.log("-- multi-object filtering...");
-//                                                long t1 = System.currentTimeMillis();
+                                                long t1 = System.currentTimeMillis();
 
                                                 int epochcnt = 0;
 
@@ -556,60 +548,52 @@ public class MTracker implements PlugIn {
 
                                                     epochcnt++;
 
-                                                    if (mtt.verbose) IJ.log("e=" + epochcnt + " [" + maxepoch + "]");
-
                                                     iter_count = 0;
 
-                                                    int cnt_removed = 0;
-
                                                     for (int i = locs.size() - 1; i >= 0; i--) { // exclude filtering from covered voxels
-                                                        if (suppmap[locs.get(i)] > 0) {
+                                                        if (suppmap[locs.get(i)] >= mtt.suppmap_limit) {
                                                             locs.remove(i);
                                                             locsw.remove(i);
-                                                            cnt_removed++;
                                                         }
                                                     }
 
-                                                    if (mtt.verbose)
-                                                        IJ.log(IJ.d2s(locs.size() / 1000f, 1) + "k locations [" + locs.size() + "] \n" + IJ.d2s((locs.size() / locs_count) * 100f, 1) + "% of the initial pool\n------------------\n");
+                                                    if (mtt.verbose) //  IJ.d2s(locs.size() / 1000f, 1) + "k locations [" + locs.size() + "] \n" +
+                                                        IJ.log(IJ.d2s((locs.size() / locs_count) * 100f, 1) + "%");//\n" +
 
                                                     if (locs.size() == 0) {
-                                                        IJ.log("locs.size()==0");
 
-                                                        // export tree
-                                                        String delindir = imdir + "PHD.sig.th.no.ro.ni.krad.stp.kapa.ps.pd.kc.e_" + sigmas + "_" + IJ.d2s(th[i09], 2) + "_" + IJ.d2s(no[i01], 0) + "_" + IJ.d2s(ro[i02], 0) + "_" + IJ.d2s(ni[i03], 0) + "_" + IJ.d2s(krad[i04], 0) + "_" + IJ.d2s(step[i05], 0) + "_" + IJ.d2s(kappa[i06], 1) + "_" + IJ.d2s(pS[i07], 2) + "_" + IJ.d2s(pD[i08], 2) + "_" + IJ.d2s(kc[i10], 1) + "_" + IJ.d2s(epochcnt, 0);// + "_" + IJ.d2s(new Random().nextInt(Integer.MAX_VALUE),0);
-//                                                            Tools.createAndCleanDir(delindir);
-                                                        Tools.createDir(delindir);
-                                                        remove_double_links(mtt.Y);
-                                                        if (!is_biderectinal_linking(mtt.Y)) {
-                                                            IJ.log("missing link! fault in bidirectional linking");
-                                                            return;
-                                                        }
+                                                        IJ.log("locs.size() == 0");
 
-                                                        ArrayList<Node> tree = mtt.bfs1(mtt.Y, true);
-                                                        exportReconstruction(tree, delindir, imnameshort); // export .swc   epochcnt, mtt.Y.size()-1,
+                                                        // export reconstruction
+                                                        String outdir = delindir + IJ.d2s(epochcnt, 0);
+                                                        Tools.createDir(outdir); // create if nonexistent
+                                                        export_reconstruction(mtt.Y, outdir+File.separator+imnameshort);
 
-                                                        break; // go out of while()
+                                                        break; // go out of while loop
                                                     }
 
-//                                                        ArrayList<int[]> N_o = initlocs(no[i01], locs, locsw); // xyz locations
                                                     ArrayList<int[]> N_o = new ArrayList<int[]>();
 
                                                     //********** initialization **********//
                                                     mtt._init(no[i01], step[i05], locs, locsw, N_o, img, N, M, P, tness, suppmap); // , template_ovrly
                                                     if (N_o.size() == 0) {
-                                                        IJ.log("initialization stopped, |N_o|=0");
-                                                        break; // out of while()
-                                                    }
 
-                                                    //exportlocsxyz(N_o, 10f, RED, ip_load.getOriginalFileInfo().directory + File.separator, IJ.d2s(N_o.size(),0)+"_seeds_");
+                                                        IJ.log("|N_o|=0");
+
+                                                        // export reconstruction
+                                                        String outdir = delindir + IJ.d2s(epochcnt, 0);
+                                                        Tools.createDir(outdir); // create if nonexistent
+                                                        export_reconstruction(mtt.Y, outdir+File.separator+imnameshort);
+
+                                                        break; // out of while loop
+                                                    }
 
                                                     if (savemidres) {
 
-                                                        exportlocsxyz(N_o, 5f, RED, midresdir, "seeds,e=" + IJ.d2s(epochcnt, 0));
+                                                        exportlocsxyz(N_o, 5f, Node.RED, midresdir, "seeds,e=" + IJ.d2s(epochcnt, 0));
 
-                                                        exportXYZW(mtt.Xk, midresdir, "XWinit,epoch=" + IJ.d2s(epochcnt, 0), MAGENTA);      // phd weights
-                                                        exportXYZVxyz(mtt.Xk, midresdir, "XVinit,epoch=" + IJ.d2s(epochcnt, 0), BLUE);     // directions of particles
+                                                        exportXYZW(mtt.Xk, midresdir, "XWinit,epoch=" + IJ.d2s(epochcnt, 0), Node.MAGENTA);      // phd weights
+                                                        exportXYZVxyz(mtt.Xk, midresdir, "XVinit,epoch=" + IJ.d2s(epochcnt, 0), Node.BLUE);     // directions of particles
                                                         exportNodes(mtt.Y, midresdir, "Yinit,epoch=" + IJ.d2s(epochcnt, 0)); // estimations
 
                                                         logval(tnessCsvLog, mtt.cluttertness);
@@ -658,7 +642,7 @@ public class MTracker implements PlugIn {
 
                                                         while (iter_count < maxiter) {
 
-                                                            if (mtt.verbose) IJ.log("k=" + iter_count);
+//                                                            if (mtt.verbose) IJ.log("k=" + iter_count);
 
                                                             boolean iterok;
 
@@ -666,10 +650,10 @@ public class MTracker implements PlugIn {
 
                                                             if (savemidres) { // iter_count%5==0 && iter_count==maxiter-1
 
-                                                                Xlog(mtt.Xk, GREEN);
-                                                                XPlog(mtt.XPk, BLUEBERRY);
-                                                                Zlog(mtt.Zk, RED, 1f);
-                                                                ZPlog(mtt.ZPk, OCHRE, .1f);
+                                                                Xlog(mtt.Xk, Node.GREEN);
+                                                                XPlog(mtt.XPk, Node.BLUE_LIGHT);
+                                                                Zlog(mtt.Zk, Node.RED, 1f);
+                                                                ZPlog(mtt.ZPk, Node.OCRE, .1f);
 
                                                                 //---------------------------------------------------------------------------------------------------
                                                                 // multi-object detection video demo
@@ -716,53 +700,27 @@ public class MTracker implements PlugIn {
                                                                 logval(zsizeCsvLog, mtt.Zk.size());
                                                                 logval(phdmassCsvLog, mtt.phdmass);
 
-                                                                if (mtt.g != null) {
-                                                                    ImagePlus gimp = new ImagePlus("g(z|x),iter0=" + IJ.d2s(iter_count, 0), new FloatProcessor(mtt.g));
-                                                                    IJ.run(gimp, "Rotate 90 Degrees Right", "");
-                                                                    IJ.saveAs(gimp, "Tiff", midresdir + File.separator + "g(z|x)" + File.separator + "g(z|x),iter0=" + IJ.d2s(iter_count, 0) + ".tif");
-                                                                }
+//                                                                if (mtt.g != null) {
+//                                                                    ImagePlus gimp = new ImagePlus("g(z|x),iter0=" + IJ.d2s(iter_count, 0), new FloatProcessor(mtt.g));
+//                                                                    IJ.run(gimp, "Rotate 90 Degrees Right", "");
+//                                                                    IJ.saveAs(gimp, "Tiff", midresdir + File.separator + "g(z|x)" + File.separator + "g(z|x),iter0=" + IJ.d2s(iter_count, 0) + ".tif");
+//                                                                }
 
                                                             }
 
                                                             if (!iterok)
-                                                                break; // go out of while loop and try new set of seed points
+                                                                break; // go out of while loop and try new set of seeds
 
                                                             iter_count++;
 
                                                         }
+
                                                     } else IJ.log("mtt.Xk.size() == 0");
 
                                                     if (locs.size() == 0 || epochcnt == maxepoch) { // each # of iterations  || epochcnt%5 == 0
-
-                                                        IJ.log("export the nodes....");
-
-                                                        // dev.
-                                                        IJ.log("before: mtt.Y.size =" + mtt.Y.size());
-
-                                                        interpolate_nodelist(mtt.Y, 1f);
-
-                                                        IJ.log("after: mtt.Y.size = " + mtt.Y.size());
-
-
-
-                                                        if (true) return;
-
-                                                        // save output
-                                                        String delindir = imdir + "PHD.sig.th.no.ro.ni.krad.stp.kapa.ps.pd.kc.e_" + sigmas + "_" + IJ.d2s(th[i09], 2) + "_" + IJ.d2s(no[i01], 0) + "_" + IJ.d2s(ro[i02], 0) + "_" + IJ.d2s(ni[i03], 0) + "_" + IJ.d2s(krad[i04], 0) + "_" + IJ.d2s(step[i05], 0) + "_" + IJ.d2s(kappa[i06], 1) + "_" + IJ.d2s(pS[i07], 2) + "_" + IJ.d2s(pD[i08], 2) + "_" + IJ.d2s(kc[i10], 1) + "_" + IJ.d2s(epochcnt, 0);// + "_" + IJ.d2s(new Random().nextInt(Integer.MAX_VALUE),0);
-                                                        Tools.createDir(delindir);
-                                                        remove_double_links(mtt.Y);
-                                                        if (!is_biderectinal_linking(mtt.Y)) {
-                                                            IJ.log("missing link! fault in bidirectional linking");
-                                                            return;
-                                                        }
-
-                                                        ArrayList<Node> tree = mtt.bfs1(mtt.Y, true);
-                                                        exportReconstruction(tree, delindir, imnameshort); // export .swc   epochcnt, mtt.Y.size()-1,
-
-                                                        if (savemidres) {
-                                                            ImagePlus hpimp = getSuppMap();
-                                                            IJ.saveAs(hpimp, "Zip", midresdir + File.separator + "suppmap,rounds=" + IJ.d2s(epochcnt, 0) + ",i=" + IJ.d2s(iter_count + 1, 0) + ".zip"); // "suppmap" + File.separator +
-                                                        }
+                                                        String outdir = delindir + IJ.d2s(epochcnt, 0);
+                                                        Tools.createDir(outdir); // create if nonexistent
+                                                        export_reconstruction(mtt.Y, outdir+File.separator+imnameshort);
                                                     }
 
                                                 } // while there are locations and epochs have not reached the limit
@@ -770,16 +728,14 @@ public class MTracker implements PlugIn {
                                                 long t2 = System.currentTimeMillis();
                                                 IJ.log("done. " + IJ.d2s(((t2 - t1) / 1000f), 2) + "s. [maxiter=" + maxiter + ", rounds=" + maxepoch + "]");
 
-                                                if (savemidres) {
-                                                    exportDelineation(mtt.Y, midresdir, imnameshort);   // .phd file
-                                                    exportNodes(mtt.Y, midresdir, imnameshort);         // .swc file with isolated nodes
-                                                }
+//                                                if (savemidres) {
+//                                                    exportNodes(mtt.Y, midresdir, imnameshort);         // .swc file with isolated nodes
+//                                                }
 
                                                 // clear mtt components
                                                 mtt.Xk.clear();
                                                 mtt.Y.clear();
 
-//                                                }
                                             }
                                         }
                                     }
@@ -793,74 +749,135 @@ public class MTracker implements PlugIn {
 
     }
 
-    private void interpolate_nodelist(ArrayList<Node> nlist, float step) {
+    private void export_reconstruction(
+            ArrayList<Node> n0,
+            String path_prefix)
+    {
 
-        // assume bidirectional connections in nlist
+        float rad2kernel = 2f;
+        int refine_iter = 4;
+        double epsilon2 = 1e-8;
+        float group_radius = 1f;
 
-        // interpolate all inter-node links with the step size
-        ArrayList< ArrayList<Boolean> > chk = new ArrayList<>(2*nlist.size());
-        for (int i = 0; i < nlist.size(); i++) {
-            ArrayList<Boolean> chk1 = new ArrayList<>();
-            if (nlist.get(i)!=null) {
-                for (int j = 0; j < nlist.get(i).nbr.size(); j++) {
-                    chk1.add(false);
+//        save_nodelist(n0, prefix+"_Phd0.swc", Node.RED);
+
+        ArrayList<Node> n1 = new ArrayList<Node>();
+        ArrayList<Node> n2 = new ArrayList<Node>();
+        ArrayList<Node> n3 = new ArrayList<Node>();
+
+        float resample_step = 1f;
+        interpolate_nodelist(n0, resample_step, n1);
+        non_blurring(n1, n2, rad2kernel, refine_iter, epsilon2);
+        n1.clear();
+
+//        int n_refinements = 1;
+//        while (n_refinements < refine_iter) {
+//            interpolate_nodelist(n2, resample_step, n1);
+//            non_blurring(n1, n2, rad2kernel, 1, epsilon2);
+//        }
+
+        group(n2, n3, group_radius); // will do the connectivity fix
+        n2.clear();
+
+        ArrayList<Node> n3tree = bfs2(n3, true);
+        n3.clear();
+
+        save_nodelist(n3tree, path_prefix+"_Phd.swc", Node.GREEN_LIGHT);
+
+    }
+
+    private void save_nodelist(ArrayList<Node> nX, String swcname, int type) {
+
+        Tools.cleanfile(swcname);
+
+        try {
+
+            PrintWriter logWriter = new PrintWriter(new BufferedWriter(new FileWriter(swcname, true)));
+
+            for (int i = 1; i < nX.size(); i++) { // nX[0] = null
+                Node nn = nX.get(i);
+
+                if (nn.nbr.size()==0) {
+                    logWriter.println(IJ.d2s(i, 0)+" "+IJ.d2s((type<0)?nn.type:type, 0)+" "+IJ.d2s(nn.loc[0], 4)+" "+IJ.d2s(nn.loc[1], 4)+" "+IJ.d2s(nn.loc[2], 4)+" "+IJ.d2s(nn.r, 3)+" "+"-1");
+                }
+                else {
+                    for (int j = 0; j < nn.nbr.size(); j++) {
+                        logWriter.println(IJ.d2s(i, 0)+" "+IJ.d2s((type<0)?nn.type:type, 0)+" "+IJ.d2s(nn.loc[0], 4)+" "+IJ.d2s(nn.loc[1], 4)+" "+IJ.d2s(nn.loc[2], 4)+" "+IJ.d2s(nn.r, 3)+" "+IJ.d2s(nn.nbr.get(j), 0));
+                    }
                 }
             }
-            chk.add(chk1);
+
+            logWriter.close();
+
+        } catch (IOException e) {
+            e.printStackTrace();
         }
 
-        int init_size = nlist.size();
+    }
 
+    private void interpolate_nodelist(ArrayList<Node> nX, float resample_step, ArrayList<Node> nY) {
+
+        // bidirectional connections between the nodes, interpolate inter-node line with resample_step size
+        ArrayList<ArrayList<Boolean>> chk = new ArrayList<ArrayList<Boolean>>(nX.size()); // bookmark interpolated pairs
+        nY.clear(); // nX copy, initialize output nY
+
+        chk.add(null);
+        nY.add(null);
+
+        for (int i = 1; i < nX.size(); i++) {
+            chk.add(new ArrayList<Boolean>(Collections.nCopies(nX.get(i).nbr.size(), false)));
+            nY.add(new Node(nX.get(i)));
+        }
+
+        int init_size = nX.size();
+        
         for (int i = 1; i < init_size; i++) {
-            for (int j = 0; j < nlist.get(i).nbr.size(); j++) {
+            for (int j = 0; j < nX.get(i).nbr.size(); j++) {
                 if (!chk.get(i).get(j)) {
 
-                    int i1 = nlist.get(i).nbr.get(j);
-                    int j1 = nlist.get(i1).nbr.indexOf(i); // find(nX[i1].nbr.begin(), nX[i1].nbr.end(), i) - nX[i1].nbr.begin();
+                    int i1 = nX.get(i).nbr.get(j);
+                    int j1 = nX.get(i1).nbr.indexOf(i);
 
                     if (j1 != -1) { // interpolate if there was existing link back
 
                         chk.get(i).set(j, true);
                         chk.get(i1).set(j1, true);
 
-                        float vnorm = (float) Math.sqrt(Math.pow(nlist.get(i1).loc[0]-nlist.get(i).loc[0], 2) +
-                                Math.pow(nlist.get(i1).loc[1]-nlist.get(i).loc[1], 2) +
-                                Math.pow(nlist.get(i1).loc[2]-nlist.get(i).loc[2], 2)
+                        float vnorm = (float) Math.sqrt(
+                                Math.pow(nX.get(i1).loc[0]-nX.get(i).loc[0], 2) +
+                                Math.pow(nX.get(i1).loc[1]-nX.get(i).loc[1], 2) +
+                                Math.pow(nX.get(i1).loc[2]-nX.get(i).loc[2], 2)
                         );
 
-                        float vx = (nlist.get(i1).loc[0]-nlist.get(i).loc[0])/vnorm;
-                        float vy = (nlist.get(i1).loc[1]-nlist.get(i).loc[1])/vnorm;
-                        float vz = (nlist.get(i1).loc[2]-nlist.get(i).loc[2])/vnorm;
-                        int N = (int) Math.ceil(vnorm/step);
+                        float vx = (nX.get(i1).loc[0]-nX.get(i).loc[0])/vnorm;
+                        float vy = (nX.get(i1).loc[1]-nX.get(i).loc[1])/vnorm;
+                        float vz = (nX.get(i1).loc[2]-nX.get(i).loc[2])/vnorm;
+                        int N = (int) Math.round(vnorm/resample_step);
 
-                        // add subsampling if N>1
                         for (int k = 1; k < N; ++k) {
                             // add the node,only location is used in the refinement stage currently
-                            nlist.add(new Node(
-                                    nlist.get(i).loc[0] + k * (vnorm/N) * vx,
-                                    nlist.get(i).loc[1] + k * (vnorm/N) * vy,
-                                    nlist.get(i).loc[2] + k * (vnorm/N) * vz,
-                                    nlist.get(i).r + (nlist.get(i1).r - nlist.get(i).r) * (k/(float)N),
-                                    ((k<=N/2)?nlist.get(i).type:nlist.get(i1).type)
+                            nY.add(new Node(
+                                    nX.get(i).loc[0] + k * (vnorm/N) * vx,
+                                    nX.get(i).loc[1] + k * (vnorm/N) * vy,
+                                    nX.get(i).loc[2] + k * (vnorm/N) * vz,
+                                    nX.get(i).r + (nX.get(i1).r - nX.get(i).r) * (k/(float)N),
+                                    ((k<=N/2)?nX.get(i).type:nX.get(i1).type)
                             ));
 
-                            // link backward
-                            if (k==1) {
-                                // first: link nlist[nlist.size()-1] with nlist[i]
-                                nlist.get(nlist.size()-1).nbr.add(i); // nX[nX.size()-1].nbr.push_back(i);
-                                nlist.get(i).nbr.set(j, nlist.size()-1); //  nX[i].nbr[j] = nX.size()-1; // replace i1 with the link to the first addition
+                            // backward
+                            if (k==1) { // first
+                                nY.get(nY.size()-1).nbr.add(i);
+                                nY.get(i).nbr.set(j, nY.size()-1);
                             }
-                            else {
-                                // middle: link nlist[nlist.size()-1] with nlist[nlist.size()-2]
-                                nlist.get(nlist.size()-1).nbr.add(nlist.size()-2); // nX[nX.size()-1].nbr.push_back(nX.size()-2);
-                                nlist.get(nlist.size()-2).nbr.add(nlist.size()-1); // nX[nX.size()-2].nbr.push_back(nX.size()-1);
+                            else { // middle
+                                nY.get(nY.size()-1).nbr.add(nY.size()-2);
+                                nY.get(nY.size()-2).nbr.add(nY.size()-1);
                             }
 
-                            // link forward
-                            if (k==N-1) {
-                                // last: link nlist[nlist.size()-1] with nlist[i1]
-                                nlist.get(nlist.size()-1).nbr.add(i1); // nX[nX.size()-1].nbr.push_back(i1);
-                                nlist.get(i1).nbr.set(j1, nlist.size()-1); // nX[i1].nbr[j1] = nX.size()-1; // replace i with the link to the last addition
+                            // forward
+                            if (k==N-1) { // last
+                                nY.get(nY.size()-1).nbr.add(i1);
+                                nY.get(i1).nbr.set(j1, nY.size()-1);
                             }
 
                         }
@@ -871,11 +888,86 @@ public class MTracker implements PlugIn {
             }
         }
 
-        IJ.log("" + IJ.d2s(((float)nlist.size()/init_size)*100f, 2) + " % node # after interpolation");
-
     }
 
-    private void interpolate_treelist(ArrayList<Node> ntree, float step, int type) {
+//    private void interpolate_nodelist(ArrayList<Node> nX, float resample_step) {
+//
+//        // bidirectional connections between the nodes, interpolate inter-node line with resample_step size
+//        ArrayList<ArrayList<Boolean>> chk = new ArrayList<ArrayList<Boolean>>(nX.size());
+//        for (int i = 0; i < nX.size(); i++) {
+//            ArrayList<Boolean> chk1 = new ArrayList<Boolean>();
+//            if (nX.get(i)!=null) {
+//                for (int j = 0; j < nX.get(i).nbr.size(); j++) {
+//                    chk1.add(false);
+//                }
+//            }
+//            chk.add(chk1);
+//        }
+//
+//        int init_size = nX.size();
+//
+//        for (int i = 1; i < init_size; i++) {
+//            for (int j = 0; j < nX.get(i).nbr.size(); j++) {
+//                if (!chk.get(i).get(j)) {
+//
+//                    int i1 = nX.get(i).nbr.get(j);
+//                    int j1 = nX.get(i1).nbr.indexOf(i); // find(nX[i1].nbr.begin(), nX[i1].nbr.end(), i) - nX[i1].nbr.begin();
+//
+//                    if (j1 != -1) { // interpolate if there was existing link back
+//
+//                        chk.get(i).set(j, true);
+//                        chk.get(i1).set(j1, true);
+//
+//                        float vnorm = (float) Math.sqrt(Math.pow(nX.get(i1).loc[0]-nX.get(i).loc[0], 2) +
+//                                Math.pow(nX.get(i1).loc[1]-nX.get(i).loc[1], 2) +
+//                                Math.pow(nX.get(i1).loc[2]-nX.get(i).loc[2], 2)
+//                        );
+//
+//                        float vx = (nX.get(i1).loc[0]-nX.get(i).loc[0])/vnorm;
+//                        float vy = (nX.get(i1).loc[1]-nX.get(i).loc[1])/vnorm;
+//                        float vz = (nX.get(i1).loc[2]-nX.get(i).loc[2])/vnorm;
+//                        int N = (int) Math.ceil(vnorm/resample_step);
+//
+//                        // add subsampling if N>1
+//                        for (int k = 1; k < N; ++k) {
+//                            // add the node,only location is used in the refinement stage currently
+//                            nX.add(new Node(
+//                                    nX.get(i).loc[0] + k * (vnorm/N) * vx,
+//                                    nX.get(i).loc[1] + k * (vnorm/N) * vy,
+//                                    nX.get(i).loc[2] + k * (vnorm/N) * vz,
+//                                    nX.get(i).r + (nX.get(i1).r - nX.get(i).r) * (k/(float)N),
+//                                    ((k<=N/2)?nX.get(i).type:nX.get(i1).type)
+//                            ));
+//
+//                            // link backward
+//                            if (k==1) { // first: link nlist[nlist.size()-1] with nlist[i]
+//                                nX.get(nX.size()-1).nbr.add(i); // nX[nX.size()-1].nbr.push_back(i);
+//                                nX.get(i).nbr.set(j, nX.size()-1); //  nX[i].nbr[j] = nX.size()-1; // replace i1 with the link to the first addition
+//                            }
+//                            else { // middle: link nlist[nlist.size()-1] with nlist[nlist.size()-2]
+//                                nX.get(nX.size()-1).nbr.add(nX.size()-2); // nX[nX.size()-1].nbr.push_back(nX.size()-2);
+//                                nX.get(nX.size()-2).nbr.add(nX.size()-1); // nX[nX.size()-2].nbr.push_back(nX.size()-1);
+//                            }
+//
+//                            // link forward
+//                            if (k==N-1) { // last: link nlist[nlist.size()-1] with nlist[i1]
+//                                nX.get(nX.size()-1).nbr.add(i1); // nX[nX.size()-1].nbr.push_back(i1);
+//                                nX.get(i1).nbr.set(j1, nX.size()-1); // nX[i1].nbr[j1] = nX.size()-1; // replace i with the link to the last addition
+//                            }
+//
+//                        }
+//
+//                    }
+//
+//                }
+//            }
+//        }
+//
+//        IJ.log("" + IJ.d2s(((float)nX.size()/init_size)*100f, 2) + " % node # after interpolation");
+//
+//    }
+
+    private void interpolate_treelist(ArrayList<Node> ntree, float resample_step, int type) {
 
         // assume onedirectional connections (1 link between 2 nodes in 1 direction)
 
@@ -892,7 +984,7 @@ public class MTracker implements PlugIn {
             }
 
             // interpolation
-            for (int j = 0; j < ntree[i].nbr.size(); ++j) { // there should be 0 or 1 neighbor
+            for (int j = 0; j < ntree.get(i).nbr.size(); ++j) { // there should be 0 or 1 neighbor
                 int i1 = ntree.get(i).nbr.get(j);
 
                 // interpolate between ntree[i] and ntree[i1]
@@ -902,7 +994,7 @@ public class MTracker implements PlugIn {
                 float vx = (ntree.get(i1).loc[0]-ntree.get(i).loc[0])/vnorm;
                 float vy = (ntree.get(i1).loc[1]-ntree.get(i).loc[1])/vnorm;
                 float vz = (ntree.get(i1).loc[2]-ntree.get(i).loc[2])/vnorm;
-                int N = (int) Math.ceil(vnorm/step);
+                int N = (int) Math.ceil(vnorm/resample_step);
 
                 // add subsampling if N>1
                 for (int k = 1; k < N; ++k) {
@@ -937,7 +1029,7 @@ public class MTracker implements PlugIn {
 
     }
 
-    private void non_blurring(ArrayList<Node> nX, ArrayList<Node> nY, float SIG2RAD, int MAXITER, float EPSILON2) {
+    private void non_blurring(ArrayList<Node> nX, ArrayList<Node> nY, float rad2kernel, int MAXITER, double EPSILON2) {
 
         // mean-shift (non-blurring) uses flexible neighbourhood scaled with respect to the node's sigma
         int checkpoint = (int) Math.round(nX.size()/10.0);
@@ -945,34 +1037,206 @@ public class MTracker implements PlugIn {
         float[] conv = {0,0,0,0}; // x y z r
         float[] next = {0,0,0,0}; // x y z r
 
+        nY.clear();
+        // make a copy of the contents from nX, nY=nX
+        for (int i = 0; i < nX.size(); i++) {
+            nY.add(nX.get(i));
+        }
+
+        double x2, y2, z2, d2, r2;
+        int iter, cnt;
+
+        for (int i = 1; i < nY.size(); i++) { // nY[0] is null
+
+            if (i%checkpoint==0) IJ.log("" + ((i/checkpoint)*10) + "% " );
+
+            conv[0] = nX.get(i).loc[0];
+            conv[1] = nX.get(i).loc[1];
+            conv[2] = nX.get(i).loc[2];
+            conv[3] = nX.get(i).r;
+
+            iter = 0;
+
+            do { // iteratively change conv[]
+
+                cnt = 0;
+
+                next[0] = 0;
+                next[1] = 0;
+                next[2] = 0;
+                next[3] = 0;
+
+                r2 = Math.pow(rad2kernel * conv[3], 2);
+
+                for (int j = 1; j < nX.size(); j++) {
+                    x2 = Math.pow(nX.get(j).loc[0]-conv[0],2);
+                    if (x2 <= r2) {
+                        y2 = Math.pow(nX.get(j).loc[1]-conv[1],2);
+                        if (x2 + y2 <= r2) {
+                            z2 = Math.pow(nX.get(j).loc[2]-conv[2],2);
+                            if (x2 + y2 + z2 <= r2) {
+
+                                next[0] += nX.get(j).loc[0];
+                                next[1] += nX.get(j).loc[1];
+                                next[2] += nX.get(j).loc[2];
+                                next[3] += nX.get(j).r;
+                                cnt++;
+
+                            }
+                        }
+                    }
+
+                }
+
+                next[0] /= cnt;
+                next[1] /= cnt;
+                next[2] /= cnt;
+                next[3] /= cnt;
+
+                d2 = Math.pow(next[0]-conv[0],2) + Math.pow(next[1]-conv[1],2) + Math.pow(next[2]-conv[2],2);
+
+                conv[0] = next[0]; // for the next iteration
+                conv[1] = next[1];
+                conv[2] = next[2];
+                conv[3] = next[3];
+
+                iter++;
+
+            }
+            while(iter<MAXITER && d2>EPSILON2);
+
+            nY.get(i).loc[0] = conv[0];
+            nY.get(i).loc[1] = conv[1];
+            nY.get(i).loc[2] = conv[2];
+            nY.get(i).r      = conv[3];
+
+        } // go through nY[i], initiate with nX[i] values and refine by mean-shift averaging
+
 
     }
 
-    private void remove_double_links(ArrayList<Node> nlist) {
-        for (int i = 0; i < nlist.size(); i++) {
-            if (nlist.get(i) != null) {
-                Set<Integer> set = new HashSet<Integer>();
-                set.addAll(nlist.get(i).nbr);
-                nlist.get(i).nbr.clear();
-                nlist.get(i).nbr.addAll(set);
+    private void group(ArrayList<Node> nX, ArrayList<Node> nY, float rad) { // sphere grouping
+
+        ArrayList<Integer> X2Y = new ArrayList<Integer>(Collections.nCopies(nX.size(), -1)); // define mapping
+        X2Y.set(0, 0); // the first (null) node corresponds to the first node in nY
+
+        nY.clear();
+        nY.add(null); // first node is the dummy node - null value in nY as it is in nX
+
+        for (int i = 1; i < nX.size(); i++) { // add the rest of the nodes
+            if (X2Y.get(i) != -1) continue; // skip if it was grouped already
+
+            X2Y.set(i, nY.size());
+            Node nYi = new Node(nX.get(i)); // initialize with the existing node
+            float grp_size = 1;
+
+            float r2 = rad * rad;
+            double d2;
+            for (int j = 1; j < nX.size(); j++) { // check the remainder of the nodes that was not grouped
+                if (j!=i && X2Y.get(j)==-1) {
+                    d2 = Math.pow(nX.get(j).loc[0]-nX.get(i).loc[0],2);
+                    if (d2<=r2) {
+                        d2 += Math.pow(nX.get(j).loc[1]-nX.get(i).loc[1],2); // [j].y
+                        if (d2<=r2) {
+                            d2 += Math.pow(nX.get(j).loc[2]-nX.get(i).loc[2],2);
+                            if (d2<=r2) {
+
+                                X2Y.set(j, nY.size()); // [j]=nY.size();
+
+                                for (int k = 0; k < nX.get(j).nbr.size(); ++k)
+                                    nYi.nbr.add(nX.get(j).nbr.get(k));  // append the neighbours of the group members
+
+                                // update local average with x,y,z,r elements from nX[j]
+                                grp_size++;
+                                float a = (grp_size-1)/grp_size;
+                                float b = (1f/grp_size);
+                                nYi.loc[0]   = a * nYi.loc[0]     + b * nX.get(j).loc[0];
+                                nYi.loc[1]   = a * nYi.loc[1]     + b * nX.get(j).loc[1];
+                                nYi.loc[2]   = a * nYi.loc[2]     + b * nX.get(j).loc[2];
+                                nYi.r        = a * nYi.r          + b * nX.get(j).r;
+
+                            }
+                        }
+                    }
+
+                }
+
+            }
+
+            nYi.type = Node.AXON;
+            nY.add(nYi);
+
+        }
+
+        // refractor the indexing to nY
+        for (int i = 1; i < nY.size(); i++) {
+            for (int j = 0; j < nY.get(i).nbr.size(); ++j) {
+                nY.get(i).nbr.set(j, X2Y.get(nY.get(i).nbr.get(j)));
             }
         }
+
+        // remove double- and self- linkages after grouping
+        connectivity_check(nY);
+
     }
 
-    private boolean is_biderectinal_linking(ArrayList<Node> nlist) {
-        for (int i = 0; i < nlist.size(); i++) {
-            if (nlist.get(i) != null) {
-                for (int j = 0; j < nlist.get(i).nbr.size(); j++) {
-                    int nbr_idx = nlist.get(i).nbr.get(j);
-                    if (Collections.frequency(nlist.get(nbr_idx).nbr, i) != 1) {
-                        IJ.log("ERROR: " + i + " --> " + nbr_idx);
-                        return false;
+    private void connectivity_check(ArrayList<Node> nX) {
+        // - clean the bidirectional connections
+        for (int i = 1; i < nX.size(); i++) {
+            // remove double neighbourhoods from the neighbour list
+            Set<Integer> set = new HashSet<Integer>();
+            set.addAll(nX.get(i).nbr);
+            nX.get(i).nbr.clear();
+            nX.get(i).nbr.addAll(set);
+            // remove self linkages (both solutions are fine if there was removal of the double neighbours)
+            nX.get(i).nbr.remove((Integer) i);
+//            nX.get(i).nbr.removeAll(Collections.singleton((Integer) i));
+        }
+        // ensure linkings are bidirectional, add if not
+        for (int i = 1; i < nX.size(); i++) { // index 0 is null
+            for (int j = 0; j < nX.get(i).nbr.size(); j++) {
+                boolean fnd = false;
+                for (int k = 0; k < nX.get(  nX.get(i).nbr.get(j)  ).nbr.size(); k++) {
+                    if (nX.get(  nX.get(i).nbr.get(j)  ).nbr.get(k) == i) {
+                        fnd = true;
+                        break;
                     }
+                }
+
+                if (!fnd) {
+                    nX.get( nX.get(i).nbr.get(j) ).nbr.add(i); // enforce link
                 }
             }
         }
-        return true;
+
+
     }
+
+//    private void remove_double_links(ArrayList<Node> nlist) {
+//        for (int i = 0; i < nlist.size(); i++) {
+//            if (nlist.get(i) != null) {
+//                Set<Integer> set = new HashSet<Integer>();
+//                set.addAll(nlist.get(i).nbr);
+//                nlist.get(i).nbr.clear();
+//                nlist.get(i).nbr.addAll(set);
+//            }
+//        }
+//    }
+
+//    private boolean is_biderectinal_linking(ArrayList<Node> nlist) {
+//        for (int i = 0; i < nlist.size(); i++) {
+//            if (nlist.get(i) != null) {
+//                for (int j = 0; j < nlist.get(i).nbr.size(); j++) {
+//                    int nbr_idx = nlist.get(i).nbr.get(j);
+//                    if (Collections.frequency(nlist.get(nbr_idx).nbr, i) != 1) {
+//                        IJ.log("ERROR: " + i + " --> " + nbr_idx);
+//                        return false;
+//                    }
+//                }
+//            }
+//        }
+//        return true;
+//    }
 
     private int[][] sample(int nsamples, float[] csw, int[][] tosample) {
 
@@ -1224,73 +1488,72 @@ public class MTracker implements PlugIn {
     // for the publication report only
 //    private void exportTime(String name, float t22, String signature, String outdir, String outfile) {}
 
-    private void exportDelineation(ArrayList<Node> nlist, String outdir, String outfile) {
+//    private void exportDelineation(ArrayList<Node> nlist, String outdir, String outfile) {
+//
+//        Tools.createDir(outdir);
+//        String delinswc1 = outdir + File.separator + outfile + ".phd";
+//        Tools.cleanfile(delinswc1);
+//
+//        try {
+//
+//            PrintWriter logWriter1 = new PrintWriter(new BufferedWriter(new FileWriter(delinswc1, true)));
+//
+//            int t1 = 0;
+//
+//            for (int i = 0; i < nlist.size(); i++) {
+//                if (nlist.get(i) != null) {
+//
+//                    logWriter1.print((++t1) + " " + Node.YELLOW + " " + IJ.d2s(nlist.get(i).loc[0], 3) + " " + IJ.d2s(nlist.get(i).loc[1], 3) + " " + IJ.d2s(nlist.get(i).loc[2], 3) + " " + IJ.d2s(nlist.get(i).r, 3) + " ");
+//                    for (int j = 0; j < nlist.get(i).nbr.size(); j++) {
+//                        logWriter1.print(IJ.d2s(nlist.get(i).nbr.get(j), 0) + " ");
+//                    }
+//                    logWriter1.println("");
+//
+//                }
+//            }
+//
+//            logWriter1.close();
+//
+//        } catch (IOException e) {
+//        }
+//
+//    }
 
-        Tools.createDir(outdir);
-        String delinswc1 = outdir + File.separator + outfile + ".phd";
-        Tools.cleanfile(delinswc1);
-
-        try {
-
-            PrintWriter logWriter1 = new PrintWriter(new BufferedWriter(new FileWriter(delinswc1, true)));
-
-            int t1 = 0;
-
-            for (int i = 0; i < nlist.size(); i++) {
-                if (nlist.get(i) != null) {
-
-                    logWriter1.print((++t1) + " " + YELLOW + " " + IJ.d2s(nlist.get(i).loc[0], 3) + " " + IJ.d2s(nlist.get(i).loc[1], 3) + " " + IJ.d2s(nlist.get(i).loc[2], 3) + " " + IJ.d2s(nlist.get(i).r, 3) + " ");
-                    for (int j = 0; j < nlist.get(i).nbr.size(); j++) {
-                        logWriter1.print(IJ.d2s(nlist.get(i).nbr.get(j), 0) + " ");
-                    }
-                    logWriter1.println("");
-
-                }
-            }
-
-            logWriter1.close();
-
-        } catch (IOException e) {
-        }
-
-    }
-
-    private void exportReconstruction(ArrayList<Node> nlist, String outdir, String outname) {
-
-        Tools.createDir(outdir);
-        String recswc = outdir + File.separator + outname + ".swc";
-        Tools.cleanfile(recswc);
-
-        try {
-            PrintWriter logWriter = new PrintWriter(new BufferedWriter(new FileWriter(recswc, true)));
-
-            for (int i = 0; i < nlist.size(); i++) {
-                if (nlist.get(i) != null) {
-
-                    Node nn = nlist.get(i);
-
-                    String out =
-                            IJ.d2s(i, 0) + " " +
-                                    IJ.d2s(nn.type, 0) + " " +
-                                    IJ.d2s(nn.loc[0], 3) + " " +
-                                    IJ.d2s(nn.loc[1], 3) + " " +
-                                    IJ.d2s(nn.loc[2], 3) + " " +
-                                    IJ.d2s(nn.r, 3) + " " +
-                                    ((nn.nbr.size() == 0) ? "-1" : IJ.d2s(nn.nbr.get(0), 0));
-
-                    logWriter.println(out);
-
-                    if (nn.nbr.size() > 1)
-                        IJ.log("*** ERROR in tree export " + i);
-                }
-            }
-
-            logWriter.close();
-
-        } catch (IOException e) {
-        }
-
-    }
+//    private void exportReconstruction(ArrayList<Node> nlist, String outdir, String outname) {
+//
+//        Tools.createDir(outdir);
+//        String recswc = outdir + File.separator + outname + ".swc";
+//        Tools.cleanfile(recswc);
+//
+//        try {
+//            PrintWriter logWriter = new PrintWriter(new BufferedWriter(new FileWriter(recswc, true)));
+//
+//            for (int i = 0; i < nlist.size(); i++) {
+//                if (nlist.get(i) != null) {
+//
+//                    Node nn = nlist.get(i);
+//
+//                    String out =
+//                            IJ.d2s(i, 0) + " " +
+//                                    IJ.d2s(nn.type, 0) + " " +
+//                                    IJ.d2s(nn.loc[0], 3) + " " +
+//                                    IJ.d2s(nn.loc[1], 3) + " " +
+//                                    IJ.d2s(nn.loc[2], 3) + " " +
+//                                    IJ.d2s(nn.r, 3) + " " +
+//                                    ((nn.nbr.size() == 0) ? "-1" : IJ.d2s(nn.nbr.get(0), 0));
+//
+//                    logWriter.println(out);
+//
+//                    if (nn.nbr.size() > 1)
+//                        IJ.log("*** ERROR in tree export " + i);
+//                }
+//            }
+//
+//            logWriter.close();
+//
+//        } catch (IOException e) {}
+//
+//    }
 
     private void exportReconstruction(int numepochs, int numnodes, ArrayList<Node> nlist, String outdir, String outname) {//
 
@@ -1459,6 +1722,146 @@ public class MTracker implements PlugIn {
 
         return offxyz;
 
+    }
+
+    private ArrayList<Node> bfs2(ArrayList<Node> nlist, boolean remove_isolated_node) {
+
+        /*
+        https://en.wikipedia.org/wiki/Breadth-first_search
+        1 Breadth-First-Search(Graph, root):
+        2
+        3     for each node n in Graph:
+        4         n.distance = INFINITY
+        5         n.parent = NIL
+        6
+        7     create empty queue Q
+        8
+        9     root.distance = 0
+        10     Q.enqueue(root)
+        11
+        12     while Q is not empty:
+        13
+        14         current = Q.dequeue()
+        15
+        16         for each node n that is adjacent to current:
+        17             if n.distance == INFINITY:
+        18                 n.distance = current.distance + 1
+        19                 n.parent = current
+        20                 Q.enqueue(n)
+        */
+
+        BfsQueue q = new BfsQueue();
+
+        ArrayList<Node> tree = new ArrayList<Node>();
+
+        int[] dist = new int[nlist.size()];
+        Arrays.fill(dist, Integer.MAX_VALUE);
+        dist[0] = -1;
+
+        // save indexing in output tree
+        int[] nmap = new int[nlist.size()];
+        Arrays.fill(nmap, -1);
+
+        // save parent index in current tree
+        int[] parent = new int[nlist.size()];
+        Arrays.fill(parent,-1);
+
+        tree.add(null);
+        int treecnt = 0;
+
+        int seed;
+
+        while ((seed = get_undiscovered(dist))>0) {
+
+            treecnt++;
+
+            dist[seed] = 0;
+            nmap[seed] = -1;
+            parent[seed] = -1;
+            q.enqueue(seed);
+
+            int nodesInTree = 0;
+
+            while (q.hasItems()) {
+
+                // dequeue(), take from FIFO structure, http://en.wikipedia.org/wiki/Queue_%28abstract_data_type%29
+                int curr = (Integer) q.dequeue();
+
+                float x = nlist.get(curr).loc[0];
+                float y = nlist.get(curr).loc[1];
+                float z = nlist.get(curr).loc[2];
+                float r = nlist.get(curr).r;
+                Node n = new Node(x, y, z, r, (treecnt+1)); // start from RED tree
+                if (parent[curr] > 0) n.nbr.add(nmap[parent[curr]]);
+
+                nmap[curr] = tree.size();
+                tree.add(n);
+                nodesInTree++;
+
+                // for each node adjacent to current
+//                int countadj = 0;
+                for (int j = 0; j < nlist.get(curr).nbr.size(); j++) {
+
+                    int adj = nlist.get(curr).nbr.get(j);
+
+                    if (dist[adj] == Integer.MAX_VALUE) {
+                        dist[adj] = dist[curr] + 1;
+                        parent[adj] = curr;
+                        // enqueue(), add to FIFO structure, http://en.wikipedia.org/wiki/Queue_%28abstract_data_type%29
+                        q.enqueue(adj);
+                    }
+
+                }
+
+                // check if there were any neighbours
+                if (nodesInTree==1 && !q.hasItems() && remove_isolated_node) {
+                    tree.remove(tree.size()-1);     // remove the one that was just added
+                    nmap[curr] = -1;                // cancel the last entry
+                }
+
+            }
+
+//            IJ.log("tree[ "+treecnt+" ] ="+nodesInTree+" nodes");
+//            if (nodesInTree==1) {
+//                tree.remove(tree.size()-1);
+//            }
+
+        }
+
+        IJ.log(treecnt+" trees.");
+
+        return tree;
+
+    }
+
+    private int get_undiscovered(int[] dist){
+
+        for (int i = 0; i < dist.length; i++) {
+            if (dist[i]>0) {
+                if (dist[i]==Integer.MAX_VALUE) {
+                    return i;
+                }
+            }
+        }
+
+        return -1;
+
+    }
+
+    private class BfsQueue<E> {
+        private LinkedList<E> list = new LinkedList<E>();
+        public void enqueue(E item) {
+            list.addLast(item);
+        }
+        public E dequeue() {
+            return list.poll();
+        }
+        public boolean hasItems() {
+            return !list.isEmpty();
+        }
+        public int size() {
+            return list.size();
+        }
     }
 
 }

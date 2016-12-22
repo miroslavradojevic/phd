@@ -1,11 +1,8 @@
-package com.braincadet.phd.multi;
+package com.braincadet.phd;
 
-import com.braincadet.phd.fun.Tools;
-import com.braincadet.phd.swc.Node;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
-import ij.gui.Overlay;
 import ij.process.FloatProcessor;
 
 import java.io.*;
@@ -40,7 +37,6 @@ public class MultiTT {
     float       pD = Float.NaN;             // detection probability
     public float cluttertness = Float.NaN;  // 0-background, 1-tubularity level at which _init objects are
     float       kclutt = Float.NaN;         // drop in PHD measure of the clutter
-//    double      tnessinit = Double.NaN;   // tubularity level at initial objects
 
     float[][]   vxyzUniform;                // 2d, 3d directions
 
@@ -58,7 +54,6 @@ public class MultiTT {
     // phd filtering variables
     public ArrayList<X> Xk;                     // multi object phd particles
     public ArrayList<X> XPk;                    // persistent object particle
-//    public ArrayList<ArrayList<Integer>> XPCk;  // XPk list indexes per cluster (to select those that will be used in Y and suppmap)
     public ArrayList<Float> XPk_cws;            // cummulative weight sum for the predicted particles
 
     public ArrayList<X> Zk;                     // measurements
@@ -67,11 +62,10 @@ public class MultiTT {
 
     public ArrayList<Node> Y;
 
-    public static int   OBJECT_LIMIT = 200;     // limit amount of objects filtered
+    public static int   OBJECT_LIMIT = 120;     // limit amount of objects filtered
     public static int   MAXITER     = Integer.MAX_VALUE;
     public static float EPSILON2    = 0.000001f;
 
-//    private X[]         Xpred;   // auxilliary storage for predicted particles
     public int          npcles;  // number of particles approximating the probability density
     public float        phdmass; //
 
@@ -91,11 +85,10 @@ public class MultiTT {
     public int R_supp = 0;
     public float gzx_sigma = 2f; // used in calculating likelihood, the distance towards measurement
     public static float weight_deg = 5;
-//    public static float weight_deg77 = 5; // for init locations
-    int MIN_CLUST_SIZE = -1; //(int) Math.round(0.1*x.size()); will refer to ni
-    float wmin = 0.4f;
+    int MIN_CLUST_SIZE = -1;
+    float wmin = 0.1f;
 
-    int suppmap_limit = 3; // once cummulative density stored in the suppression map becomes more than limit, new measurements are not added to avoid overtracing the same spatial structure
+    public int suppmap_limit = 3; // once cummulative density stored in the suppression map becomes more than limit, new measurements are not added to avoid overtracing the same spatial structure
     boolean ALLOW_MERGING = true;
     // add refinement, resmpling and grouping
 
@@ -832,7 +825,7 @@ public class MultiTT {
 
         }
 
-        IJ.log("PICKED === "+i);
+//        IJ.log("PICKED === "+i);
 
         String log = "_init,\t";
         log+="|X|="+Xk.size()+", ";
@@ -844,7 +837,7 @@ public class MultiTT {
         log+="|Yk|=" + (Y.size()-prevYsize) + ", ";
         npcles = Math.round(phdmass)*ro; // will be used to resample in next iteration
         log+="npcles=" + npcles;
-        if (verbose) IJ.log(log);
+        if (false && verbose) IJ.log(log);
 
     }
 
@@ -1034,7 +1027,10 @@ public class MultiTT {
         measure(ZPk, kernel_radius, Y, N, M, tness, suppmap, Zk); // uses the suppmap to filter the values of the obtained measurement particles
         eventlog += "|Z|=" + Zk.size() + " ";
 
-        if (Zk.size()==0) {IJ.log("Zk.size()==0"); return false;}
+        if (Zk.size()==0) {
+//            IJ.log("Zk.size()==0");
+            return false;
+        }
 
         //** update **//
         XPk_cws = update(XPk, Zk); // updated weights will be added to cws output
@@ -1729,7 +1725,8 @@ public class MultiTT {
                         tags.clear();
                         tags.addAll(set);
 
-                        Node nn = new Node(cx, cy, cz, 2f); // rr
+                        //** add the node **//
+                        Node nn = new Node(cx, cy, cz, 1f); // radius set to 1f
                         int newtag = nout.size();
                         nout.add(nn);
 
@@ -1855,18 +1852,7 @@ public class MultiTT {
                         cy /= wsum;
                         cz /= wsum;
 
-//                        IJ.log("group_estimate()...");
-//                        String l1 = "[ ";
-//                        for (int j = 0; j < tags.size(); j++) {
-//                            l1+=IJ.d2s(tags.get(j),0)+" ";
-//                        }
-//                        l1+=" ]";
-//                        IJ.log(l1);
-
-
-
-                        // tags list... linking backwards - possible to allow merging or not to allow merging
-
+                        // linking - possible to allow merging or not to allow merging
 
                         if (ALLOW_MERGING) { // allow merging, remove duplicates only
                             Set<Integer> set = new HashSet<Integer>();
@@ -1879,15 +1865,6 @@ public class MultiTT {
                             tags.clear();
                             tags.add(tags_mode);
                         }
-
-//                        if (tags.size()>1) { // if there are more than 1 elements...
-//                            String l2 = "{ ";
-//                            for (int j = 0; j < tags.size(); j++) {
-//                                l2+=IJ.d2s(tags.get(j),0)+" ";
-//                            }
-//                            l2+=" }";
-//                            IJ.log(l2);
-//                        }
 
                         //** add the node **//
                         Node nn = new Node(cx, cy, cz, 1f); // rr
@@ -1983,6 +1960,7 @@ public class MultiTT {
         return cws;
 
     }
+
 
 
     // obsolete!!
@@ -2158,6 +2136,124 @@ public class MultiTT {
         return discovered;
     }
 
+    private ArrayList<Node> bfs(ArrayList<Node> nlist) {
+
+        /**
+         *  breadth-first search (BFS) to traverse the tree from extracted node list
+         *  http://en.wikipedia.org/wiki/Breadth-first_search
+         *
+         1  procedure BFS(G,v) is
+         2      let Q be a queue
+         3      Q.enqueue(v)
+         4      label v as discovered
+         5      while Q is not empty
+         6         v ← Q.dequeue()
+         7         for all edges from v to w in G.adjacentEdges(v) do
+         8             if w is not labeled as discovered
+         9                 Q.enqueue(w)
+         10                label w as discovered
+         *
+         */
+
+        // will essentially convert ArrayList<Node> with all its linkings (bi-directional connections)
+        // into the list of trees ArrayList<ArrayList<Trace>> t where each tree t[i] contains the BFS traverse (with 1 directional connections)
+        // BFS needs Queue data structure that will be implemented in class BfsQueue
+        // Queue keeps the links between the nodes, link is described as int[] where int[] ~ [curr_node_idx, adjacent_node_idx]
+        // knowing just the node index in the queue is not enough, need to know the index of the mother node as well
+        // discovered is array of lists that will keep the labels of the discovered adjacent node pairs, bookekeeping for the BFS
+
+        // the key reason for keeping two values is that each time we need the mother index and so for each trace element, including the first node of the trace
+
+        BfsQueue bfsQueue = new BfsQueue();
+
+        ArrayList<Node> tree = new ArrayList<Node>();
+
+        ArrayList[] discovered = init_discovered_list(nlist);
+
+        int[] nodemap = new int[nlist.size()];
+        Arrays.fill(nodemap, -1);
+
+        tree.add(null); // size=1
+        int tree_count = 1;
+
+        int seed;
+        while ((seed = get_undiscovered(discovered))!=-1) {
+
+            float xseed = nlist.get(seed).loc[0];
+            float yseed = nlist.get(seed).loc[1];
+            float zseed = nlist.get(seed).loc[2];
+            float rseed = nlist.get(seed).r;
+
+            nodemap[seed] = tree.size();
+            tree.add(new Node(xseed, yseed, zseed, rseed, tree_count));
+
+            // add the neighbors to the queue and label them as discovered
+            for (int j = 0; j <nlist.get(seed).nbr.size(); j++) {
+                int next = nlist.get(seed).nbr.get(j);
+                // enqueue(), add to FIFO structure, http://en.wikipedia.org/wiki/Queue_%28abstract_data_type%29
+                bfsQueue.enqueue(new int[]{seed, next});
+                discovered[seed].set(j, true);                                 // set label to discovered in both neighbouting index lists
+                discovered[next].set(nlist.get(next).nbr.indexOf(seed), true); // index where the background link was found
+            }
+
+            while (bfsQueue.hasItems()) {
+
+                // dequeue(), take from FIFO structure, http://en.wikipedia.org/wiki/Queue_%28abstract_data_type%29
+                int [] getLnk = (int[]) bfsQueue.dequeue();
+
+                // next neighbour at the time it was added to the queue becomes current
+                int prev = getLnk[0];
+                int curr = getLnk[1];
+
+                // always add the first node (it exists since this one was stored in the queue)
+                Node n1 = new Node(nlist.get(curr).loc[0], nlist.get(curr).loc[1], nlist.get(curr).loc[2], nlist.get(curr).r, tree_count);
+                n1.nbr.add(nodemap[prev]);
+                nodemap[curr] = tree.size();
+                tree.add(n1);
+
+                while(Collections.frequency(discovered[curr], false)==1) { // while the number of undiscovered is 1 just step further
+
+                    prev = curr;
+                    curr = nlist.get(curr).nbr.get(discovered[curr].indexOf(false)); // curr takes the value of the next step
+
+                    Node n2 = new Node(nlist.get(curr).loc[0], nlist.get(curr).loc[1], nlist.get(curr).loc[2], nlist.get(curr).r, tree_count);
+                    n2.nbr.add(nodemap[prev]);
+                    nodemap[curr] = tree.size();
+                    tree.add(n2);
+
+                    // mark as discovered the connections curr--prev and prev--curr
+                    discovered[curr].set(nlist.get(curr).nbr.indexOf(prev), true);
+                    discovered[prev].set(nlist.get(prev).nbr.indexOf(curr), true);
+
+                }
+
+                // means that it was not on the neurite anymore, check adjacent traces, now it is either endpoint or junction
+                for (int i = 0; i < discovered[curr].size(); i++) {
+                    boolean isDiscovered =  (Boolean) discovered[curr].get(i);
+                    if (!isDiscovered) { // if it was not discovered
+                        int next = nlist.get(curr).nbr.get(i);
+
+                        bfsQueue.enqueue(new int[]{curr, next});   // enqueue()
+
+                        discovered[curr].set(i, true); // label as discovered
+                        discovered[next].set(nlist.get(next).nbr.indexOf(curr), true);
+
+                    }
+                }
+
+            }
+
+            tree_count++;
+
+        }
+
+        IJ.log(" -> "+tree_count+ " trees, "+ (tree.size()-1) +" nodes.");
+
+        return tree;
+
+    }
+
+
     public ArrayList<Node> bfs1(ArrayList<Node> nlist, boolean remove_isolated_tree_with_one_node) {
 
         /*
@@ -2282,124 +2378,7 @@ public class MultiTT {
 
     }
 
-    public ArrayList<Node> bfs(ArrayList<Node> nlist) {
-
-        /**
-         *  breadth-first search (BFS) to traverse the tree from extracted node list
-         *  http://en.wikipedia.org/wiki/Breadth-first_search
-         *
-         1  procedure BFS(G,v) is
-         2      let Q be a queue
-         3      Q.enqueue(v)
-         4      label v as discovered
-         5      while Q is not empty
-         6         v ← Q.dequeue()
-         7         for all edges from v to w in G.adjacentEdges(v) do
-         8             if w is not labeled as discovered
-         9                 Q.enqueue(w)
-         10                label w as discovered
-         *
-         */
-
-        // will essentially convert ArrayList<Node> with all its linkings (bi-directional connections)
-        // into the list of trees ArrayList<ArrayList<Trace>> t where each tree t[i] contains the BFS traverse (with 1 directional connections)
-        // BFS needs Queue data structure that will be implemented in class BfsQueue
-        // Queue keeps the links between the nodes, link is described as int[] where int[] ~ [curr_node_idx, adjacent_node_idx]
-        // knowing just the node index in the queue is not enough, need to know the index of the mother node as well
-        // discovered is array of lists that will keep the labels of the discovered adjacent node pairs, bookekeeping for the BFS
-
-        // the key reason for keeping two values is that each time we need the mother index and so for each trace element, including the first node of the trace
-
-        BfsQueue bfsQueue = new BfsQueue();
-
-        ArrayList<Node> tree = new ArrayList<Node>();
-
-        ArrayList[] discovered = init_discovered_list(nlist);
-
-        int[] nodemap = new int[nlist.size()];
-        Arrays.fill(nodemap, -1);
-
-        tree.add(null); // size=1
-        int tree_count = 1;
-
-        int seed;
-        while ((seed = get_undiscovered(discovered))!=-1) {
-
-            float xseed = nlist.get(seed).loc[0];
-            float yseed = nlist.get(seed).loc[1];
-            float zseed = nlist.get(seed).loc[2];
-            float rseed = nlist.get(seed).r;
-
-            nodemap[seed] = tree.size();
-            tree.add(new Node(xseed, yseed, zseed, rseed, tree_count));
-
-            // add the neighbors to the queue and label them as discovered
-            for (int j = 0; j <nlist.get(seed).nbr.size(); j++) {
-                int next = nlist.get(seed).nbr.get(j);
-                // enqueue(), add to FIFO structure, http://en.wikipedia.org/wiki/Queue_%28abstract_data_type%29
-                bfsQueue.enqueue(new int[]{seed, next});
-                discovered[seed].set(j, true);                                 // set label to discovered in both neighbouting index lists
-                discovered[next].set(nlist.get(next).nbr.indexOf(seed), true); // index where the background link was found
-            }
-
-            while (bfsQueue.hasItems()) {
-
-                // dequeue(), take from FIFO structure, http://en.wikipedia.org/wiki/Queue_%28abstract_data_type%29
-                int [] getLnk = (int[]) bfsQueue.dequeue();
-
-                // next neighbour at the time it was added to the queue becomes current
-                int prev = getLnk[0];
-                int curr = getLnk[1];
-
-                // always add the first node (it exists since this one was stored in the queue)
-                Node n1 = new Node(nlist.get(curr).loc[0], nlist.get(curr).loc[1], nlist.get(curr).loc[2], nlist.get(curr).r, tree_count);
-                n1.nbr.add(nodemap[prev]);
-                nodemap[curr] = tree.size();
-                tree.add(n1);
-
-                while(Collections.frequency(discovered[curr], false)==1) { // while the number of undiscovered is 1 just step further
-
-                    prev = curr;
-                    curr = nlist.get(curr).nbr.get(discovered[curr].indexOf(false)); // curr takes the value of the next step
-
-                    Node n2 = new Node(nlist.get(curr).loc[0], nlist.get(curr).loc[1], nlist.get(curr).loc[2], nlist.get(curr).r, tree_count);
-                    n2.nbr.add(nodemap[prev]);
-                    nodemap[curr] = tree.size();
-                    tree.add(n2);
-
-                    // mark as discovered the connections curr--prev and prev--curr
-                    discovered[curr].set(nlist.get(curr).nbr.indexOf(prev), true);
-                    discovered[prev].set(nlist.get(prev).nbr.indexOf(curr), true);
-
-                }
-
-                // means that it was not on the neurite anymore, check adjacent traces, now it is either endpoint or junction
-                for (int i = 0; i < discovered[curr].size(); i++) {
-                    boolean isDiscovered =  (Boolean) discovered[curr].get(i);
-                    if (!isDiscovered) { // if it was not discovered
-                        int next = nlist.get(curr).nbr.get(i);
-
-                        bfsQueue.enqueue(new int[]{curr, next});   // enqueue()
-
-                        discovered[curr].set(i, true); // label as discovered
-                        discovered[next].set(nlist.get(next).nbr.indexOf(curr), true);
-
-                    }
-                }
-
-            }
-
-            tree_count++;
-
-        }
-
-        IJ.log(" -> "+tree_count+ " trees, "+ (tree.size()-1) +" nodes.");
-
-        return tree;
-
-    }
-
-    class BfsQueue<E> {
+    private class BfsQueue<E> {
         private LinkedList<E> list = new LinkedList<E>();
         public void enqueue(E item) {
             list.addLast(item);

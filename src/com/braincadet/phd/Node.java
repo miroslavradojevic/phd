@@ -1,4 +1,4 @@
-package com.braincadet.phd.swc;
+package com.braincadet.phd;
 
 import java.util.ArrayList;
 
@@ -21,6 +21,26 @@ public class Node {
     public static int CUSTOM2 = 6;
     public static int UNDEFINED = 7;
 
+    // color coding for the swc rendering as in Vaa3D swc visualization (www.vaa3d.org)
+    public static int WHITE     = 0;
+    public static int BLACK     = 1;
+    public static int RED       = 2;
+    public static int BLUE      = 3;
+    public static int PINK      = 4;
+    public static int MAGENTA   = 5;
+    public static int YELLOW    = 6;
+    public static int GREEN     = 7;
+    public static int OCRE      = 8;
+    public static int GREEN_LIGHT = 9;
+    public static int PINK_LIGHT = 10;
+    public static int MAGENTA_LIGHT = 11;
+    public static int VIOLET    = 12;
+    public static int PINK1     = 13;
+    public static int GREEN_SHARP = 14;
+    public static int BLUE_LIGHT = 15;
+    public static int GREEN1    = 16;
+    public static int OCRE_LIGHT = 17;
+
     public ArrayList<Integer> nbr;
 
     public Node(float xn, float yn, float zn, float rn) {
@@ -37,6 +57,20 @@ public class Node {
         this(xn, yn, zn, rn);
         type    = typ;
         nbr = new ArrayList<Integer>();
+    }
+
+    public Node(Node n) {
+        loc = new float[3];
+        loc[0] = n.loc[0];
+        loc[1] = n.loc[1];
+        loc[2] = n.loc[2];
+        r      = n.r;
+        type   = n.type;
+        nbr    = new ArrayList<Integer>();
+        for (int i = 0; i < n.nbr.size(); i++) {
+            nbr.add(n.nbr.get(i));
+        }
+
     }
 
 //    public static boolean areNeighbours(int nidx1, ArrayList<Integer> nbrs1, int nidx2, ArrayList<Integer> nbrs2) {
