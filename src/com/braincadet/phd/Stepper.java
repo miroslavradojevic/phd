@@ -1,7 +1,5 @@
 package com.braincadet.phd;
 
-import com.braincadet.phd.Bessel;
-import com.braincadet.phd.Tools;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
@@ -11,10 +9,8 @@ import java.io.*;
 import java.util.ArrayList;
 
 /**
- * Stepper class has some commonly used offsets and weights and the directions assigned to the offsets
+ * Stepper class has commonly used mathematical models used in the prediction (offsets, weights, geometry)
  * there is a set of weights used for importance sampling for object particle prediction
- * also suppression weight function (included in importance sampling)
- * Created by miroslav on 11/26/15.
  */
 public class Stepper {
 
@@ -156,12 +152,6 @@ public class Stepper {
             for (int j = 0; j < p.length; j++) {
                 w[i][j] = w[i][j] / wsum; // normalize into probability distribution
             }
-
-//            String tt = "";
-//            for (int j = 0; j < p.length; j++) {
-//                tt += IJ.d2s(((w[i][j]-w_min)/(w_max-w_min)), 4) +" | ";
-//            }
-//            IJ.log(tt);
 
         }
 

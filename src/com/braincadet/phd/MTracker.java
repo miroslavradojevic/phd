@@ -16,26 +16,24 @@ import java.util.*;
 
 public class MTracker implements PlugIn {
 
-//    static int WHITE = 0, BLACK = 1, RED = 2, BLUE = 3, VIOLET = 4, MAGENTA = 5, YELLOW = 6, GREEN = 7, OCHRE = 8, WEAK_GREEN = 9, PINK = 10, BLUEBERRY = 12;
-
     String sigmas = "2,4,6";              // comma separated scale values (tubularity)
 
     // one sigmas tubularity image can be called for sequence of parameters (comma separated values)
     // parameter lists (string + array with extracted values)
-    int[] no;              // initial multi-object state cardinality
-    String no_csv = "20";   // string with no values in CSV format
+    int[] no;                           // initial multi-object state cardinality
+    String no_csv = "20";               // string with no values in CSV format
 
-    int[] ro;                 // number of particles per object
-    String ro_csv = "10";      // string with values in CSV format
+    int[] ro;                           // number of particles per object
+    String ro_csv = "10";               // string with values in CSV format
 
-    int[] ni;                 // number of predictions per particle
-    String ni_csv = "10";      // string with ni
+    int[] ni;                           // number of predictions per particle
+    String ni_csv = "10";               // string with ni
 
     int[] krad;                         // tube diameter in pixels
-    String krad_csv = "4.0";            //
+    String krad_csv = "4.0";
 
-    int[] step;                       // motion step
-    String step_csv = "3.0";           //
+    int[] step;                         // motion step
+    String step_csv = "3.0";
 
     float[] kappa;                      // von Mises angular probability
     String kappa_csv = "3";
@@ -63,12 +61,6 @@ public class MTracker implements PlugIn {
     float[] tness;                  // tubeness min-max normalized
     int[] suppmap;                  // supression map: disable sampling (image stack size)
 
-    // template_* variables were used for the multi-object detection video demo
-//    ImageStack template_stack;
-//    ImagePlus template_image;
-//    Overlay template_ovrly;
-//    ZProjector template_zprojector;
-
     int N, M, P, SZ;                    // stack dimensions (width, height, length, size)
     String imdir, imnameshort;
     String midresdir = "";              // output directories, filenames
@@ -94,14 +86,11 @@ public class MTracker implements PlugIn {
 
     private static final long MEGABYTE = 1024L * 1024L;
 
-    public static long bytesToMegabytes(long bytes) {
-        return bytes / MEGABYTE;
-    }
+//    public static long bytesToMegabytes(long bytes) {
+//        return bytes / MEGABYTE;
+//    }
 
     public void run(String s) {
-
-//        IJ.log("testing234...");
-//        if (true) return;
 
         // read input image, store the most recent path in Prefs
         String in_folder = Prefs.get("com.braincadet.phd.dir", System.getProperty("user.home"));
@@ -132,34 +121,6 @@ public class MTracker implements PlugIn {
 
         imnameshort = ip_load.getShortTitle();
         imdir = ip_load.getOriginalFileInfo().directory;
-
-//        if (false) {
-//            // experimental code, prototype video export
-//            Overlay o = new Overlay();
-//            Color cc = new Color(1f,1f,0f,0.4f);
-//            float rr = 1f;
-//            for (int z = 1; z < P; z++) {
-//                for (int x = 0; x < N/10; x++) {
-//                    for (int y = 0; y < M/10; y++) {
-//                        OvalRoi oi = new OvalRoi(x-rr+0.5, y-rr+0.5, 2*rr, 2*rr);
-//                        oi.setPosition(z);
-//                        oi.setFillColor(cc);
-//                        oi.setStrokeColor(cc);
-//                        o.add(oi);
-//                    }
-//                }
-//            }
-//
-//            ImagePlus ip1 = ip_load.duplicate();
-//            ip1.setOverlay(o);
-//            ip1.updateAndDraw();
-//            IJ.log("flatten...");
-//            ip1.flattenStack();
-//            FileSaver fs = new FileSaver(ip1);
-//            fs.saveAsTiff(imdir+File.separator+imnameshort+"_flatt.tif");
-//            IJ.log("saved!");
-//            return;
-//        }
 
         // read image into byte[]
         img = new float[SZ];
@@ -327,7 +288,7 @@ public class MTracker implements PlugIn {
             TubenessProcessor tp = new TubenessProcessor(sig, false);
             ImagePlus result = tp.generateImage(ip_load);
             ImageCalculator ic = new ImageCalculator();
-            // average, multipy tubularity values at different scales...
+            // average, multipy
 //          IJ.run(result, "Multiply...", "value=" + IJ.d2s(1f/readLn.length,3) + " stack");
 //          ic.run("Add 32-bit stack", ip_tness, result); // result of the addition is placed in ip_tness
             // max
@@ -425,16 +386,6 @@ public class MTracker implements PlugIn {
                                                     Tools.cleanfile(phdmassCsvLog);
                                                 }
 
-//                                                    ImagePlus impool = ip_tness.duplicate();//(usetness)?ip_tness.duplicate():ip_load.duplicate();
-//                                                    IJ.run(impool, "8-bit", "");
-//                                                    int threshold = (int) Math.ceil(th[i09] * 255);
-//                                                    applythreshold(threshold, impool);
-//                                                    Prefs.blackBackground = true;
-//                                                    IJ.run(impool, "Skeletonize", "stack");
-
-//                                                    if (savemidres) {
-//                                                        IJ.saveAs(impool, "Tiff", midresdir + File.separator + "seedpool,th=" + IJ.d2s(th[i09], 2) + ".tif");
-//                                                    }
                                                 ArrayList<Integer> locs = new ArrayList<Integer>();     // list of candidate locations for seed points
                                                 ArrayList<Float> locsw = new ArrayList<Float>();       // weights assigned to each location
 
@@ -468,15 +419,6 @@ public class MTracker implements PlugIn {
                                                         tt.add(new int[]{x, y, z});
                                                     }
 
-//                                                    Overlay ov = new Overlay();
-//                                                    OvalRoi or = new OvalRoi(5 + 0.5, 5 + 0.5, 2, 2);
-//                                                    or.setFillColor(Color.YELLOW);
-//                                                    or.setPosition(0 + 1);
-//                                                    ov.add(or);
-                                                    // save input image with an overlay of candidate points
-//                                                        ip_load.setOverlay(ov);
-//                                                        IJ.saveAs(ip_load, "TIFF", midresdir + File.separator + "t0.tif");
-
                                                     exportlocsxyz(tt, 0.3f, Node.VIOLET, midresdir, "seedpool_tolerance=" + IJ.d2s(th[i09], 2));
 
                                                     tt.clear();
@@ -494,16 +436,7 @@ public class MTracker implements PlugIn {
 
                                                 Arrays.fill(suppmap, 0); // reset suppression map, it will fill up as rounds advance
 
-                                                // multi-object detection video demo
-//                                                template_stack = new ImageStack(N, M);
-//                                                for (int lay = 0; lay < P; lay++) {
-//                                                    template_stack.addSlice(new ByteProcessor(N, M));
-//                                                }
-//                                                template_image = new ImagePlus();
-//                                                template_ovrly = new Overlay();
-//                                                template_zprojector = new ZProjector();
                                                 //******************************************************************
-
                                                 // output directory name contains parameters
                                                 String delindir = imdir + "PHD.sig.th.no.ro.ni.krad.stp.kapa.ps.pd.kc.e_" +
                                                         sigmas                  + "_" +
@@ -537,7 +470,7 @@ public class MTracker implements PlugIn {
                                                         }
                                                     }
 
-                                                    if (mtt.verbose) //  IJ.d2s(locs.size() / 1000f, 1) + "k locations [" + locs.size() + "] \n" +
+                                                    if (mtt.verbose)
                                                         IJ.log(IJ.d2s((locs.size() / locs_count) * 100f, 1) + "%");
 
                                                     if (locs.size() == 0) {
@@ -581,37 +514,6 @@ public class MTracker implements PlugIn {
                                                         logval(zsizeCsvLog, no[i01]);                     // nr. observations mtt.Zk.size()
                                                         logval(phdmassCsvLog, mtt.phdmass);
 
-                                                        //---------------------------------------------------------------------------------------------------
-                                                        // multi-object detection video demo
-//                                                        if (false) { // it can log the tags... slows down a lot... and takes memory!!!
-//                                                            ImagePlus hpimp = getSuppMap();
-//                                                            template_zprojector.setImage(hpimp);
-//                                                            template_zprojector.setMethod(ZProjector.MAX_METHOD);
-//                                                            template_zprojector.doProjection();
-//                                                            hpimp = template_zprojector.getProjection();
-//                                                                IJ.run(hpimp, "8-bit", "");
-//                                                            IJ.saveAs(hpimp, "Zip", midresdir + File.separator + "suppmap" + File.separator + "r=" + IJ.d2s(epochcnt, 0) + ",i=" + IJ.d2s(0, 0) + ".zip");
-//                                                                template_image.setStack(template_stack);
-//                                                                template_image.setOverlay(template_ovrly);
-//                                                                template_image.flattenStack(); // takes java 1.6 at least
-//                                                                IJ.run(template_image, "8-bit", "");
-//                                                                template_zprojector.setImage(template_image);
-//                                                                template_zprojector.setMethod(ZProjector.MAX_METHOD);
-//                                                                template_zprojector.doRGBProjection();
-//                                                                ImagePlus hpimp1 = template_zprojector.getProjection();
-
-//                                                                hpimp1.setTitle("obj");
-//                                                                hpimp1.show();
-//                                                                hpimp.show();
-//                                                                IJ.run("Add Image...", "image=obj x=0 y=0 opacity=40 zero");
-//                                                                hpimp.updateAndDraw();
-
-//                                                                IJ.saveAs(hpimp, "Zip", midresdir + File.separator + "suppmap" + File.separator + "phd,r="+IJ.d2s(epochcnt, 0)+",i=" + IJ.d2s(0, 0) + ".zip");
-
-//                                                                hpimp.close();
-//                                                                hpimp1.close();
-//                                                        }
-
                                                     }
 
                                                     if (mtt.Xk.size() > 0) {
@@ -628,47 +530,6 @@ public class MTracker implements PlugIn {
                                                                 XPlog(mtt.XPk, Node.BLUE_LIGHT);
                                                                 Zlog(mtt.Zk, Node.RED, 1f);
                                                                 ZPlog(mtt.ZPk, Node.OCRE, .1f);
-
-                                                                //---------------------------------------------------------------------------------------------------
-                                                                // multi-object detection video demo
-//                                                                if (false) { // set if you wish to have the map, takes lot of resources!
-
-//                                                                    ImagePlus hpimp = getSuppMap();
-//                                                                    template_zprojector.setImage(hpimp);
-//                                                                    template_zprojector.setMethod(ZProjector.MAX_METHOD);
-//                                                                    template_zprojector.doProjection();
-//                                                                    hpimp = template_zprojector.getProjection();
-//                                                                        IJ.run(hpimp, "8-bit", "");
-//                                                                    IJ.saveAs(hpimp, "Zip", midresdir + File.separator + "suppmap" + File.separator + "r=" + IJ.d2s(epochcnt, 0) + ",i=" + IJ.d2s(iter_count + 1, 0) + ".zip");
-
-//                                                                        template_image.setStack(template_stack);
-//                                                                        if (template_ovrly.size()>0) {
-//                                                                            template_image.setOverlay(template_ovrly);
-//                                                                            template_image.flattenStack(); // asks java 1.6
-//                                                                        }
-
-//                                                                      IJ.run(template_image, "8-bit", "");
-//                                                                        template_zprojector.setImage(template_image);
-//                                                                        template_zprojector.setMethod(ZProjector.MAX_METHOD);
-//                                                                        if (template_image.getType()==ImagePlus.COLOR_RGB)
-//                                                                            template_zprojector.doRGBProjection(); // there was flattening
-//                                                                        else
-//                                                                            template_zprojector.doProjection();
-
-//                                                                        ImagePlus hpimp1 = template_zprojector.getProjection();
-
-//                                                                        hpimp1.setTitle("obj");
-//                                                                        hpimp1.show();
-//                                                                        hpimp.show();
-//                                                                        IJ.run("Add Image...", "image=obj x=0 y=0 opacity=40 zero");
-//                                                                        hpimp.updateAndDraw();
-
-//                                                                        IJ.saveAs(hpimp, "Zip",midresdir + File.separator + "suppmap" + File.separator + "phd,r="+IJ.d2s(epochcnt, 0)+",i=" + IJ.d2s(iter_count+1, 0) + ".zip");
-
-//                                                                        hpimp.close();
-//                                                                        hpimp1.close();
-
-//                                                                }
 
                                                                 logval(tnessCsvLog, mtt.XPk);
                                                                 logval(zsizeCsvLog, mtt.Zk.size());
@@ -853,83 +714,6 @@ public class MTracker implements PlugIn {
         }
 
     }
-
-//    private void interpolate_nodelist(ArrayList<Node> nX, float resample_step) {
-//
-//        // bidirectional connections between the nodes, interpolate inter-node line with resample_step size
-//        ArrayList<ArrayList<Boolean>> chk = new ArrayList<ArrayList<Boolean>>(nX.size());
-//        for (int i = 0; i < nX.size(); i++) {
-//            ArrayList<Boolean> chk1 = new ArrayList<Boolean>();
-//            if (nX.get(i)!=null) {
-//                for (int j = 0; j < nX.get(i).nbr.size(); j++) {
-//                    chk1.add(false);
-//                }
-//            }
-//            chk.add(chk1);
-//        }
-//
-//        int init_size = nX.size();
-//
-//        for (int i = 1; i < init_size; i++) {
-//            for (int j = 0; j < nX.get(i).nbr.size(); j++) {
-//                if (!chk.get(i).get(j)) {
-//
-//                    int i1 = nX.get(i).nbr.get(j);
-//                    int j1 = nX.get(i1).nbr.indexOf(i); // find(nX[i1].nbr.begin(), nX[i1].nbr.end(), i) - nX[i1].nbr.begin();
-//
-//                    if (j1 != -1) { // interpolate if there was existing link back
-//
-//                        chk.get(i).set(j, true);
-//                        chk.get(i1).set(j1, true);
-//
-//                        float vnorm = (float) Math.sqrt(Math.pow(nX.get(i1).loc[0]-nX.get(i).loc[0], 2) +
-//                                Math.pow(nX.get(i1).loc[1]-nX.get(i).loc[1], 2) +
-//                                Math.pow(nX.get(i1).loc[2]-nX.get(i).loc[2], 2)
-//                        );
-//
-//                        float vx = (nX.get(i1).loc[0]-nX.get(i).loc[0])/vnorm;
-//                        float vy = (nX.get(i1).loc[1]-nX.get(i).loc[1])/vnorm;
-//                        float vz = (nX.get(i1).loc[2]-nX.get(i).loc[2])/vnorm;
-//                        int N = (int) Math.ceil(vnorm/resample_step);
-//
-//                        // add subsampling if N>1
-//                        for (int k = 1; k < N; ++k) {
-//                            // add the node,only location is used in the refinement stage currently
-//                            nX.add(new Node(
-//                                    nX.get(i).loc[0] + k * (vnorm/N) * vx,
-//                                    nX.get(i).loc[1] + k * (vnorm/N) * vy,
-//                                    nX.get(i).loc[2] + k * (vnorm/N) * vz,
-//                                    nX.get(i).r + (nX.get(i1).r - nX.get(i).r) * (k/(float)N),
-//                                    ((k<=N/2)?nX.get(i).type:nX.get(i1).type)
-//                            ));
-//
-//                            // link backward
-//                            if (k==1) { // first: link nlist[nlist.size()-1] with nlist[i]
-//                                nX.get(nX.size()-1).nbr.add(i); // nX[nX.size()-1].nbr.push_back(i);
-//                                nX.get(i).nbr.set(j, nX.size()-1); //  nX[i].nbr[j] = nX.size()-1; // replace i1 with the link to the first addition
-//                            }
-//                            else { // middle: link nlist[nlist.size()-1] with nlist[nlist.size()-2]
-//                                nX.get(nX.size()-1).nbr.add(nX.size()-2); // nX[nX.size()-1].nbr.push_back(nX.size()-2);
-//                                nX.get(nX.size()-2).nbr.add(nX.size()-1); // nX[nX.size()-2].nbr.push_back(nX.size()-1);
-//                            }
-//
-//                            // link forward
-//                            if (k==N-1) { // last: link nlist[nlist.size()-1] with nlist[i1]
-//                                nX.get(nX.size()-1).nbr.add(i1); // nX[nX.size()-1].nbr.push_back(i1);
-//                                nX.get(i1).nbr.set(j1, nX.size()-1); // nX[i1].nbr[j1] = nX.size()-1; // replace i with the link to the last addition
-//                            }
-//
-//                        }
-//
-//                    }
-//
-//                }
-//            }
-//        }
-//
-//        IJ.log("" + IJ.d2s(((float)nX.size()/init_size)*100f, 2) + " % node # after interpolation");
-//
-//    }
 
     private void interpolate_treelist(ArrayList<Node> ntree, float resample_step, int type) {
 
@@ -1175,32 +959,6 @@ public class MTracker implements PlugIn {
 
 
     }
-
-//    private void remove_double_links(ArrayList<Node> nlist) {
-//        for (int i = 0; i < nlist.size(); i++) {
-//            if (nlist.get(i) != null) {
-//                Set<Integer> set = new HashSet<Integer>();
-//                set.addAll(nlist.get(i).nbr);
-//                nlist.get(i).nbr.clear();
-//                nlist.get(i).nbr.addAll(set);
-//            }
-//        }
-//    }
-
-//    private boolean is_biderectinal_linking(ArrayList<Node> nlist) {
-//        for (int i = 0; i < nlist.size(); i++) {
-//            if (nlist.get(i) != null) {
-//                for (int j = 0; j < nlist.get(i).nbr.size(); j++) {
-//                    int nbr_idx = nlist.get(i).nbr.get(j);
-//                    if (Collections.frequency(nlist.get(nbr_idx).nbr, i) != 1) {
-//                        IJ.log("ERROR: " + i + " --> " + nbr_idx);
-//                        return false;
-//                    }
-//                }
-//            }
-//        }
-//        return true;
-//    }
 
     private int[][] sample(int nsamples, float[] csw, int[][] tosample) {
 
@@ -1448,76 +1206,6 @@ public class MTracker implements PlugIn {
         }
 
     }
-
-    // for the publication report only
-//    private void exportTime(String name, float t22, String signature, String outdir, String outfile) {}
-
-//    private void exportDelineation(ArrayList<Node> nlist, String outdir, String outfile) {
-//
-//        Tools.createDir(outdir);
-//        String delinswc1 = outdir + File.separator + outfile + ".phd";
-//        Tools.cleanfile(delinswc1);
-//
-//        try {
-//
-//            PrintWriter logWriter1 = new PrintWriter(new BufferedWriter(new FileWriter(delinswc1, true)));
-//
-//            int t1 = 0;
-//
-//            for (int i = 0; i < nlist.size(); i++) {
-//                if (nlist.get(i) != null) {
-//
-//                    logWriter1.print((++t1) + " " + Node.YELLOW + " " + IJ.d2s(nlist.get(i).loc[0], 3) + " " + IJ.d2s(nlist.get(i).loc[1], 3) + " " + IJ.d2s(nlist.get(i).loc[2], 3) + " " + IJ.d2s(nlist.get(i).r, 3) + " ");
-//                    for (int j = 0; j < nlist.get(i).nbr.size(); j++) {
-//                        logWriter1.print(IJ.d2s(nlist.get(i).nbr.get(j), 0) + " ");
-//                    }
-//                    logWriter1.println("");
-//
-//                }
-//            }
-//
-//            logWriter1.close();
-//
-//        } catch (IOException e) {
-//        }
-//
-//    }
-
-//    private void exportReconstruction(ArrayList<Node> nlist, String outdir, String outname) {
-//
-//        Tools.createDir(outdir);
-//        String recswc = outdir + File.separator + outname + ".swc";
-//        Tools.cleanfile(recswc);
-//
-//        try {
-//            PrintWriter logWriter = new PrintWriter(new BufferedWriter(new FileWriter(recswc, true)));
-//
-//            for (int i = 0; i < nlist.size(); i++) {
-//                if (nlist.get(i) != null) {
-//
-//                    Node nn = nlist.get(i);
-//
-//                    String out =
-//                            IJ.d2s(i, 0) + " " +
-//                                    IJ.d2s(nn.type, 0) + " " +
-//                                    IJ.d2s(nn.loc[0], 3) + " " +
-//                                    IJ.d2s(nn.loc[1], 3) + " " +
-//                                    IJ.d2s(nn.loc[2], 3) + " " +
-//                                    IJ.d2s(nn.r, 3) + " " +
-//                                    ((nn.nbr.size() == 0) ? "-1" : IJ.d2s(nn.nbr.get(0), 0));
-//
-//                    logWriter.println(out);
-//
-//                    if (nn.nbr.size() > 1)
-//                        IJ.log("*** ERROR in tree export " + i);
-//                }
-//            }
-//
-//            logWriter.close();
-//
-//        } catch (IOException e) {}
-//
-//    }
 
     private void exportReconstruction(int numepochs, int numnodes, ArrayList<Node> nlist, String outdir, String outname) {//
 
