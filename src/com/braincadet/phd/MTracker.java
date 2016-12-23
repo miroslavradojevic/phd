@@ -400,9 +400,6 @@ public class MTracker implements PlugIn {
                                             for (int i10 = 0; i10 < kc.length; i10++) {
 
                                                 if (savemidres) {
-//                                                    Tools.createAndCleanDir(midresdir + File.separator + "g(z|x)");
-                                                    Tools.createAndCleanDir(midresdir + File.separator + "suppmap");
-                                                    Tools.createAndCleanDir(midresdir + File.separator + "objects");
 
                                                     X_swclog = midresdir + File.separator + "Xk.swc";
                                                     X_cnt[0] = 0;
@@ -442,32 +439,15 @@ public class MTracker implements PlugIn {
                                                 ArrayList<Float> locsw = new ArrayList<Float>();       // weights assigned to each location
 
                                                 for (int z = ((P == 1) ? 1 : 2); z <= ((P == 1) ? P : P - 1); z++) { // layer count, zcoord is layer-1
-//                                                        byte[] slc;
                                                     Polygon maxx;
-//                                                        if (true) { // seed location - local maxima of the tubularity measure
                                                     MaximumFinder mf = new MaximumFinder();
-//                                                            slc = (byte[])mf.findMaxima(ip_tness.getStack().getProcessor(z), 0.1, MaximumFinder.SINGLE_POINTS, true).getPixels();
                                                     maxx = mf.getMaxima(ip_tness.getStack().getProcessor(z), th[i09], false);
-//                                                        }
-//                                                        else { // alternative seed location - threshold+skeletonize tubularity measure
-//                                                            slc = (byte[]) impool.getStack().getPixels(z);
-//                                                        }
 
                                                     for (int i = 0; i < maxx.npoints; i++) {
-//                                                            IJ.log("[x,y]="+maxx.xpoints[i]+", "+maxx.ypoints[i]);
                                                         int ii = (z - 1) * (N * M) + maxx.ypoints[i] * N + maxx.xpoints[i];
                                                         locs.add(ii);
                                                         locsw.add((float) Math.pow(tness[ii], MultiTT.weight_deg));
                                                     }
-//                                                        for (int x = 0; x < N; x++) {
-//                                                            for (int y = 0; y < M; y++) {
-//                                                                int ii = (z - 1) * (N * M) + y * N + x;
-//                                                                if ((slc[y * N + x] & 0xff) == 255) {
-//                                                                    locs.add(ii);
-//                                                                    locsw.add((float) Math.pow(tness[ii], MultiTT.weight_deg77));
-//                                                                }
-//                                                            }
-//                                                        }
                                                 }
 
                                                 if (locs.size() == 0) {
@@ -558,7 +538,7 @@ public class MTracker implements PlugIn {
                                                     }
 
                                                     if (mtt.verbose) //  IJ.d2s(locs.size() / 1000f, 1) + "k locations [" + locs.size() + "] \n" +
-                                                        IJ.log(IJ.d2s((locs.size() / locs_count) * 100f, 1) + "%");//\n" +
+                                                        IJ.log(IJ.d2s((locs.size() / locs_count) * 100f, 1) + "%");
 
                                                     if (locs.size() == 0) {
 
@@ -636,13 +616,7 @@ public class MTracker implements PlugIn {
 
                                                     if (mtt.Xk.size() > 0) {
 
-//                                                            IJ.log("mtt.Xk.size() > 0");
-//                                                            IJ.log("mtt.Y.size()="+mtt.Y.size());
-//                                                            if (savemidres) Xlog(mtt.Xk, GREEN);
-
                                                         while (iter_count < maxiter) {
-
-//                                                            if (mtt.verbose) IJ.log("k=" + iter_count);
 
                                                             boolean iterok;
 
@@ -700,12 +674,6 @@ public class MTracker implements PlugIn {
                                                                 logval(zsizeCsvLog, mtt.Zk.size());
                                                                 logval(phdmassCsvLog, mtt.phdmass);
 
-//                                                                if (mtt.g != null) {
-//                                                                    ImagePlus gimp = new ImagePlus("g(z|x),iter0=" + IJ.d2s(iter_count, 0), new FloatProcessor(mtt.g));
-//                                                                    IJ.run(gimp, "Rotate 90 Degrees Right", "");
-//                                                                    IJ.saveAs(gimp, "Tiff", midresdir + File.separator + "g(z|x)" + File.separator + "g(z|x),iter0=" + IJ.d2s(iter_count, 0) + ".tif");
-//                                                                }
-
                                                             }
 
                                                             if (!iterok)
@@ -717,7 +685,7 @@ public class MTracker implements PlugIn {
 
                                                     } else IJ.log("mtt.Xk.size() == 0");
 
-                                                    if (locs.size() == 0 || epochcnt == maxepoch) { // each # of iterations  || epochcnt%5 == 0
+                                                    if (locs.size() == 0 || epochcnt == maxepoch || epochcnt%5 == 0) { // each # of iterations
                                                         String outdir = delindir + IJ.d2s(epochcnt, 0);
                                                         Tools.createDir(outdir); // create if nonexistent
                                                         export_reconstruction(mtt.Y, outdir+File.separator+imnameshort);
@@ -727,10 +695,6 @@ public class MTracker implements PlugIn {
 
                                                 long t2 = System.currentTimeMillis();
                                                 IJ.log("done. " + IJ.d2s(((t2 - t1) / 1000f), 2) + "s. [maxiter=" + maxiter + ", rounds=" + maxepoch + "]");
-
-//                                                if (savemidres) {
-//                                                    exportNodes(mtt.Y, midresdir, imnameshort);         // .swc file with isolated nodes
-//                                                }
 
                                                 // clear mtt components
                                                 mtt.Xk.clear();
@@ -782,7 +746,7 @@ public class MTracker implements PlugIn {
         ArrayList<Node> n3tree = bfs2(n3, true);
         n3.clear();
 
-        save_nodelist(n3tree, path_prefix+"_Phd.swc", Node.GREEN_LIGHT);
+        save_nodelist(n3tree, path_prefix+".swc", Node.GREEN_LIGHT);
 
     }
 
