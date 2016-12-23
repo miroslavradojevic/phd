@@ -6,9 +6,6 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Random;
 
-/**
- * Created by miroslav on 10/13/15.
- */
 public class Tools {
 
     public static void createAndCleanDir(String dirpath) {
@@ -19,14 +16,12 @@ public class Tools {
             for (File file : files)
                 if (!file.delete()) System.out.println("Failed to delete " + file);
         }
-//        IJ.log(dirpath);
     }
 
     public static void createDir(String dirpath) {
         // create directory without cleaning it up
         File f1 = new File(dirpath);
         if (!f1.exists()) {f1.mkdirs();}
-//        IJ.log("createDir " + dirpath);
     }
 
     public static void cleanfile(String filepath) {

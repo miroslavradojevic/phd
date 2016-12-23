@@ -4,9 +4,6 @@ import ij.IJ;
 
 import java.util.ArrayList;
 
-/**
- * Created by miroslav on 10/21/15.
- */
 public class X {
 
     public float x;

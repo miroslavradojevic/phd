@@ -1,14 +1,11 @@
 package com.braincadet.phd;
 
-/**
- * Created by miroslav on 10/25/15.
- */
 public class Z {
 
     public float x;
     public float y;
     public float z;
-//    public float    sig; // cross-section gaussian standard deviation will correspond to the size of the observation
+//    public float    sig; // cross-section gaussian standard deviation would correspond to the size of the observation
     public int      count; // how many out of ro*np are >correlation threshold, will be used to determine if it is clutter
 
     public Z(){}

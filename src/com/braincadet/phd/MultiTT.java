@@ -1078,8 +1078,7 @@ public class MultiTT {
             int N, int M, //int P,
             float[] tness,
             int[] suppmap,
-            ArrayList<X> zout//,
-            //ArrayList<ArrayList<Integer>> zc
+            ArrayList<X> zout
     ) {
 
         float gauss_limit = 3*dist;
@@ -1424,13 +1423,9 @@ public class MultiTT {
             int nclust_min,
             int nclust_max,
             float wmin,
-//            int N,
-//            int M,
-//            int[] suppmap,
             ArrayList<Node> y,
             ArrayList<X> Rk,
-            ArrayList<Float> Rcws// ,
-//            Overlay template_ovrly    multi-object detection video demo
+            ArrayList<Float> Rcws
     ) {
 
         // cluster weighted phd particles
@@ -1778,17 +1773,11 @@ public class MultiTT {
     private void group_estimate(
             ArrayList<X> xin,
             int count_min,
-//            int nclust_max,
             float wmin,
-//            int N,
-//            int M,
-//            int[] suppmap,
             ArrayList<Node> nout,
             ArrayList<X> Rk,
-            ArrayList<Float> Rcws //, Overlay template_ovrly (in multi-object detection video demo)
+            ArrayList<Float> Rcws
     ) {
-
-//        template_ovrly.clear();
 
         Rk.clear();
         Rcws.clear();
@@ -1801,8 +1790,6 @@ public class MultiTT {
         int nr_clusters = 0;
 
         for (int i = 0; i < xin.size(); i++) {
-
-//            suppmap[Math.round(xin.get(i).z)*(N*M)+Math.round(xin.get(i).y)*N+Math.round(xin.get(i).x)] = xin.get(i).tag;
 
             if (!checked[i]) {
 
@@ -1961,97 +1948,95 @@ public class MultiTT {
 
     }
 
-
-
     // obsolete!!
-    public static int[] cluster(ArrayList<X> Xlist, double ddist) {
-
-        int[] labels = new int[Xlist.size()];
-        for (int i = 0; i < labels.length; i++) labels[i] = i;
-
-        for (int i = 0; i < Xlist.size(); i++) {
-
-            // one versus the rest
-            for (int j = 0; j < Xlist.size(); j++) {
-
-                if (i!=j) {
-
-                    double dst2 	=
-                                    Math.pow(Xlist.get(i).x-Xlist.get(j).x, 2) +
-                                    Math.pow(Xlist.get(i).y-Xlist.get(j).y, 2) +
-                                    Math.pow(Xlist.get(i).z-Xlist.get(j).z, 2);
-
-                    double rd2 		=
-                                    Math.pow(ddist, 2); // Xlist.get(i).sig+Xlist.get(j).sig
-
-
-                    if (dst2<=rd2) {  // they are neighbours
-
-                        if (labels[j]!=labels[i]) {
-
-                            int currLabel = labels[j];
-                            int newLabel  = labels[i];
-
-                            labels[j] = newLabel;
-
-                            //set all that also were currLabel to newLabel
-                            for (int k = 0; k < labels.length; k++)
-                                if (labels[k]==currLabel)
-                                    labels[k] = newLabel;
-
-                        }
-
-                    }
-
-                }
-
-            }
-
-        }
-
-        return labels; // cluster labels for each disc
-
-    }
+//    public static int[] cluster(ArrayList<X> Xlist, double ddist) {
+//
+//        int[] labels = new int[Xlist.size()];
+//        for (int i = 0; i < labels.length; i++) labels[i] = i;
+//
+//        for (int i = 0; i < Xlist.size(); i++) {
+//
+//            // one versus the rest
+//            for (int j = 0; j < Xlist.size(); j++) {
+//
+//                if (i!=j) {
+//
+//                    double dst2 	=
+//                                    Math.pow(Xlist.get(i).x-Xlist.get(j).x, 2) +
+//                                    Math.pow(Xlist.get(i).y-Xlist.get(j).y, 2) +
+//                                    Math.pow(Xlist.get(i).z-Xlist.get(j).z, 2);
+//
+//                    double rd2 		=
+//                                    Math.pow(ddist, 2); // Xlist.get(i).sig+Xlist.get(j).sig
+//
+//
+//                    if (dst2<=rd2) {  // they are neighbours
+//
+//                        if (labels[j]!=labels[i]) {
+//
+//                            int currLabel = labels[j];
+//                            int newLabel  = labels[i];
+//
+//                            labels[j] = newLabel;
+//
+//                            //set all that also were currLabel to newLabel
+//                            for (int k = 0; k < labels.length; k++)
+//                                if (labels[k]==currLabel)
+//                                    labels[k] = newLabel;
+//
+//                        }
+//
+//                    }
+//
+//                }
+//
+//            }
+//
+//        }
+//
+//        return labels; // cluster labels for each disc
+//
+//    }
 
     // obsolete!
-    public static ArrayList<Z> extract(int[] labels, ArrayList<X> vals) { //int[] vals
-
-        boolean[] checked = new boolean[labels.length];
-        ArrayList<Z> out = new ArrayList<Z>();
-
-        for (int i = 0; i < labels.length; i++) {
-            if (!checked[i]) {
-
-                X cc = vals.get(i); //[ i ]; // idxs[i]
-                int count = 1;
-                checked[i] = true;
-
-                // check the rest
-                for (int j = i+1; j < labels.length; j++) {
-                    if (!checked[j]) {
-                        if (labels[j]==labels[i]) {
-
-                            cc.x += vals.get(j).x;
-                            cc.y += vals.get(j).y;
-                            cc.z += vals.get(j).z;
-//                            cc.sig += vals.get(j).sig;
-
-                            count++;
-                            checked[j] = true;
-
-                        }
-                    }
-                }
-
-                out.add(new Z(cc.x/count, cc.y/count, cc.z/count, count)); // cc.sig/count,
-//                out.add(new float[]{centroid/count, count});
-
-            }
-        }
-
-        return out;
-
-    }
+//    public static ArrayList<Z> extract(int[] labels, ArrayList<X> vals) { //int[] vals
+//
+//        boolean[] checked = new boolean[labels.length];
+//        ArrayList<Z> out = new ArrayList<Z>();
+//
+//        for (int i = 0; i < labels.length; i++) {
+//            if (!checked[i]) {
+//
+//                X cc = vals.get(i); //[ i ]; // idxs[i]
+//                int count = 1;
+//                checked[i] = true;
+//
+//                // check the rest
+//                for (int j = i+1; j < labels.length; j++) {
+//                    if (!checked[j]) {
+//                        if (labels[j]==labels[i]) {
+//
+//                            cc.x += vals.get(j).x;
+//                            cc.y += vals.get(j).y;
+//                            cc.z += vals.get(j).z;
+////                            cc.sig += vals.get(j).sig;
+//
+//                            count++;
+//                            checked[j] = true;
+//
+//                        }
+//                    }
+//                }
+//
+//                out.add(new Z(cc.x/count, cc.y/count, cc.z/count, count)); // cc.sig/count,
+////                out.add(new float[]{centroid/count, count});
+//
+//            }
+//        }
+//
+//        return out;
+//
+//    }
 
     private ArrayList<Integer> importsamp(ArrayList<Float> lcws, int n) {
         // systematic resampling, Beyond Kalman Filtering, Ristic et al.
@@ -2252,7 +2237,6 @@ public class MultiTT {
         return tree;
 
     }
-
 
     public ArrayList<Node> bfs1(ArrayList<Node> nlist, boolean remove_isolated_tree_with_one_node) {
 
