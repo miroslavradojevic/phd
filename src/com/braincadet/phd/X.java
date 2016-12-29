@@ -17,7 +17,7 @@ public class X {
 //    public float sig;   // gaussian cross-section standard deviation
 //    public float corr;  // correlation with the gaussian cross-section template that corresponds to oriented particle (x,y,z,vx,vy,vz)
     public float tness; // tubeness at (x,y,z)
-    public float w;     // density weight (phd particle weight)
+    public float w;     // density weight (phd1 particle weight)
 
     public int tag; // each particle associated with a supression tag
 

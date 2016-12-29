@@ -51,8 +51,8 @@ public class MultiTT {
 
     public Stepper mm; // prediction model (offsets and weights used for importance sampling)
 
-    // phd filtering variables
-    public ArrayList<X> Xk;                     // multi object phd particles
+    // phd1 filtering variables
+    public ArrayList<X> Xk;                     // multi object phd1 particles
     public ArrayList<X> XPk;                    // persistent object particle
     public ArrayList<Float> XPk_cws;            // cummulative weight sum for the predicted particles
 
@@ -1404,7 +1404,7 @@ public class MultiTT {
 
         }
 
-        // cluster weighted phd particles using mean-shift and get the weighted mean out of each cluster
+        // cluster weighted phd1 particles using mean-shift and get the weighted mean out of each cluster
 //        float outcws = 0;
 //        for (int i = 0; i < x.size(); i++) {
 //            xw[i] = x.get(i).tness; // used to be w
@@ -1412,7 +1412,7 @@ public class MultiTT {
 //        }
 //        meanShift(x, xw, dist);
 //        clustering(x.size(), 2f);
-//        group(x, MIN_CLUST, Integer.MAX_VALUE, suppmap, rsupp, N, M, P, y); // estimate() uses x phd particles
+//        group(x, MIN_CLUST, Integer.MAX_VALUE, suppmap, rsupp, N, M, P, y); // estimate() uses x phd1 particles
 //        return outcws;
 
     }
@@ -1428,7 +1428,7 @@ public class MultiTT {
             ArrayList<Float> Rcws
     ) {
 
-        // cluster weighted phd particles
+        // cluster weighted phd1 particles
         for (int i = 0; i < x.size(); i++) {xw[i] = x.get(i).w;}
 
         meanShift(x, xw, kradius);
@@ -1439,7 +1439,7 @@ public class MultiTT {
 
     private float estimate(ArrayList<X> x, float dist, int[] suppmap, int N, int M, int P, ArrayList<Node> y) {
 
-        // cluster weighted phd particles using mean-shift and get the weighted mean out of each cluster
+        // cluster weighted phd1 particles using mean-shift and get the weighted mean out of each cluster
         float outcws = 0;
         for (int i = 0; i < x.size(); i++) {
             xw[i] = x.get(i).tness; // used to be w
@@ -1448,7 +1448,7 @@ public class MultiTT {
 
         meanShift(x, xw, dist);
         clustering(x.size(), 2f);
-        group(x, 0, Integer.MAX_VALUE, suppmap, N, M, P, y); // estimate() uses x phd particles   rsupp
+        group(x, 0, Integer.MAX_VALUE, suppmap, N, M, P, y); // estimate() uses x phd1 particles   rsupp
 
         return outcws;
     }
@@ -1922,7 +1922,7 @@ public class MultiTT {
 
         }
         
-        // update weights using g, Cz and clutter phd
+        // update weights using g, Cz and clutter phd1
         ArrayList<Float> cws = new ArrayList<Float>(x.size());
 
         for (int i = 0; i < x.size(); i++) {
