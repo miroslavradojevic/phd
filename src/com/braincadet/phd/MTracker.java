@@ -47,7 +47,7 @@ public class MTracker implements PlugIn {
     float[] th;                         // reference tubularity ratio for clutter
     String th_csv = "10";
 
-    float[] kc;                         // clutter phd decay parameter
+    float[] kc;                         // clutter phd1 decay parameter
     String kc_csv = "4";
 
     int maxepoch = 10;                  // epoch limit
@@ -93,11 +93,11 @@ public class MTracker implements PlugIn {
     public void run(String s) {
 
         // read input image, store the most recent path in Prefs
-        String in_folder = Prefs.get("com.braincadet.phd.dir", System.getProperty("user.home"));
+        String in_folder = Prefs.get("com.braincadet.phd1.dir", System.getProperty("user.home"));
         OpenDialog.setDefaultDirectory(in_folder);
         OpenDialog dc = new OpenDialog("Select image");
         in_folder = dc.getDirectory();
-        Prefs.set("com.braincadet.phd.dir", in_folder);
+        Prefs.set("com.braincadet.phd1.dir", in_folder);
         String image_path = dc.getPath();
         if (image_path == null) return;
 
@@ -136,56 +136,56 @@ public class MTracker implements PlugIn {
         if (Macro.getOptions() == null) {
 
             GenericDialog gd = new GenericDialog("PHD");
-            gd.addStringField("sigmas", Prefs.get("com.braincadet.phd.sigmas", sigmas), 10);
-            gd.addStringField("th", Prefs.get("com.braincadet.phd.th", th_csv), 10);
-            gd.addStringField("no", Prefs.get("com.braincadet.phd.no", no_csv), 20);
-            gd.addStringField("ro", Prefs.get("com.braincadet.phd.ro", ro_csv), 10);
-            gd.addStringField("ni", Prefs.get("com.braincadet.phd.ni", ni_csv), 10);
-            gd.addStringField("step", Prefs.get("com.braincadet.phd.step", step_csv), 10);
-            gd.addStringField("kappa", Prefs.get("com.braincadet.phd.kappa", kappa_csv), 10);
-            gd.addStringField("ps", Prefs.get("com.braincadet.phd.ps", pS_csv), 10);
-            gd.addStringField("pd", Prefs.get("com.braincadet.phd.pd", pD_csv), 10);
-            gd.addStringField("krad", Prefs.get("com.braincadet.phd.krad", krad_csv), 10);
-            gd.addStringField("kc", Prefs.get("com.braincadet.phd.kc", kc_csv), 10);
-            gd.addNumericField("maxiter", Prefs.get("com.braincadet.phd.maxiter", maxiter), 0, 5, "");
-            gd.addStringField("maxepoch", Prefs.get("com.braincadet.phd.maxepoch", Integer.toString(maxepoch)), 10);
-//            gd.addCheckbox("savemidres", Prefs.get("com.braincadet.phd.savemidres", savemidres));
-//            gd.addCheckbox("usetness", Prefs.get("com.braincadet.phd.usetness", usetness));
+            gd.addStringField("sigmas", Prefs.get("com.braincadet.phd1.sigmas", sigmas), 10);
+            gd.addStringField("th", Prefs.get("com.braincadet.phd1.th", th_csv), 10);
+            gd.addStringField("no", Prefs.get("com.braincadet.phd1.no", no_csv), 20);
+            gd.addStringField("ro", Prefs.get("com.braincadet.phd1.ro", ro_csv), 10);
+            gd.addStringField("ni", Prefs.get("com.braincadet.phd1.ni", ni_csv), 10);
+            gd.addStringField("step", Prefs.get("com.braincadet.phd1.step", step_csv), 10);
+            gd.addStringField("kappa", Prefs.get("com.braincadet.phd1.kappa", kappa_csv), 10);
+            gd.addStringField("ps", Prefs.get("com.braincadet.phd1.ps", pS_csv), 10);
+            gd.addStringField("pd", Prefs.get("com.braincadet.phd1.pd", pD_csv), 10);
+            gd.addStringField("krad", Prefs.get("com.braincadet.phd1.krad", krad_csv), 10);
+            gd.addStringField("kc", Prefs.get("com.braincadet.phd1.kc", kc_csv), 10);
+            gd.addNumericField("maxiter", Prefs.get("com.braincadet.phd1.maxiter", maxiter), 0, 5, "");
+            gd.addStringField("maxepoch", Prefs.get("com.braincadet.phd1.maxepoch", Integer.toString(maxepoch)), 10);
+//            gd.addCheckbox("savemidres", Prefs.get("com.braincadet.phd1.savemidres", savemidres));
+//            gd.addCheckbox("usetness", Prefs.get("com.braincadet.phd1.usetness", usetness));
 
             gd.showDialog();
             if (gd.wasCanceled()) return;
 
             sigmas = gd.getNextString();
-            Prefs.set("com.braincadet.phd.sigmas", sigmas);
+            Prefs.set("com.braincadet.phd1.sigmas", sigmas);
             th_csv = gd.getNextString();
-            Prefs.set("com.braincadet.phd.th", th_csv);
+            Prefs.set("com.braincadet.phd1.th", th_csv);
             no_csv = gd.getNextString();
-            Prefs.set("com.braincadet.phd.no", no_csv);
+            Prefs.set("com.braincadet.phd1.no", no_csv);
             ro_csv = gd.getNextString();
-            Prefs.set("com.braincadet.phd.ro", ro_csv);
+            Prefs.set("com.braincadet.phd1.ro", ro_csv);
             ni_csv = gd.getNextString();
-            Prefs.set("com.braincadet.phd.ni", ni_csv);
+            Prefs.set("com.braincadet.phd1.ni", ni_csv);
             step_csv = gd.getNextString();
-            Prefs.set("com.braincadet.phd.step", step_csv);
+            Prefs.set("com.braincadet.phd1.step", step_csv);
             kappa_csv = gd.getNextString();
-            Prefs.set("com.braincadet.phd.kappa", kappa_csv);
+            Prefs.set("com.braincadet.phd1.kappa", kappa_csv);
             pS_csv = gd.getNextString();
-            Prefs.set("com.braincadet.phd.ps", pS_csv);
+            Prefs.set("com.braincadet.phd1.ps", pS_csv);
             pD_csv = gd.getNextString();
-            Prefs.set("com.braincadet.phd.pd", pD_csv);
+            Prefs.set("com.braincadet.phd1.pd", pD_csv);
             krad_csv = gd.getNextString();
-            Prefs.set("com.braincadet.phd.krad", krad_csv);
+            Prefs.set("com.braincadet.phd1.krad", krad_csv);
             kc_csv = gd.getNextString();
-            Prefs.set("com.braincadet.phd.kc", kc_csv);
+            Prefs.set("com.braincadet.phd1.kc", kc_csv);
             maxiter = (int) gd.getNextNumber();
-            Prefs.set("com.braincadet.phd.maxiter", maxiter);
+            Prefs.set("com.braincadet.phd1.maxiter", maxiter);
             String maxepoch_str = gd.getNextString();
             maxepoch = (maxepoch_str.equals("inf")) ? Integer.MAX_VALUE : Integer.valueOf(maxepoch_str);
-            Prefs.set("com.braincadet.phd.maxepoch", maxepoch);
+            Prefs.set("com.braincadet.phd1.maxepoch", maxepoch);
 //            savemidres = gd.getNextBoolean();
-//            Prefs.set("com.braincadet.phd.savemidres", savemidres);
+//            Prefs.set("com.braincadet.phd1.savemidres", savemidres);
 //            usetness = gd.getNextBoolean();
-//            Prefs.set("com.braincadet.phd.usetness", usetness);
+//            Prefs.set("com.braincadet.phd1.usetness", usetness);
 
         } else {
 
@@ -505,7 +505,7 @@ public class MTracker implements PlugIn {
 
                                                         exportlocsxyz(N_o, 5f, Node.RED, midresdir, "seeds,e=" + IJ.d2s(epochcnt, 0));
 
-                                                        exportXYZW(mtt.Xk, midresdir, "XWinit,epoch=" + IJ.d2s(epochcnt, 0), Node.MAGENTA);      // phd weights
+                                                        exportXYZW(mtt.Xk, midresdir, "XWinit,epoch=" + IJ.d2s(epochcnt, 0), Node.MAGENTA);      // phd1 weights
                                                         exportXYZVxyz(mtt.Xk, midresdir, "XVinit,epoch=" + IJ.d2s(epochcnt, 0), Node.BLUE);     // directions of particles
                                                         exportNodes(mtt.Y, midresdir, "Yinit,epoch=" + IJ.d2s(epochcnt, 0)); // estimations
 
