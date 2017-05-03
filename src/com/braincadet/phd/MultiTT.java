@@ -664,7 +664,7 @@ public class MultiTT {
 
     }
 
-    public void _init(int n, int radius, ArrayList<Integer> l, ArrayList<Float> w, ArrayList<int[]> N_o, float[] img, int N, int M, int P, float[] tness, int[] suppmap) {
+    public void _init(int n, int radius, ArrayList<Integer> l, ArrayList<Float> w, ArrayList<int[]> N_o, int N, int M, int P, float[] tness, int[] suppmap) { // , float[] img
         // , Overlay template_ovrly
         // template_ovrly.clear();
 

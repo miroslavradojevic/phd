@@ -1,11 +1,11 @@
 package com.braincadet.phd;
 
-import features.TubenessProcessor;
+import com.braincadet.vess.Frangi;
+//import features.TubenessProcessor;
 import ij.*;
 import ij.gui.GenericDialog;
 import ij.io.OpenDialog;
 import ij.measure.Measurements;
-import ij.plugin.ImageCalculator;
 import ij.plugin.PlugIn;
 import ij.plugin.filter.MaximumFinder;
 import ij.process.*;
@@ -16,7 +16,7 @@ import java.util.*;
 
 public class MTracker implements PlugIn {
 
-    String sigmas = "2,4,6";              // comma separated scale values (tubularity)
+    String sigmas = "2,4";              // comma separated scale values (tubularity)
 
     // one sigmas tubularity image can be called for sequence of parameters (comma separated values)
     // parameter lists (string + array with extracted values)
@@ -45,23 +45,25 @@ public class MTracker implements PlugIn {
     String pD_csv = "0.95";
 
     float[] th;                         // reference tubularity ratio for clutter
-    String th_csv = "10";
+    String th_csv = "0.03";
 
     float[] kc;                         // clutter phd1 decay parameter
     String kc_csv = "4";
 
-    int maxepoch = 10;                  // epoch limit
+    int maxepoch = 150;                  // epoch limit
+    int EPOCH_LOG = 10;                  //
 
     // save results
-    int maxiter = 200;              // iteration limit (hundreds are fine)
-    boolean savemidres = false;     // save partial results
-    boolean usetness = true;        // use tubularity measure
+    int maxiter = 200;                  // iteration limit (hundreds are fine)
+    boolean savemidres = false;         // save partial results
+    float[] tness;                      // tubeness min-max normalized
 
-    float[] img;                    // original image as float array
-    float[] tness;                  // tubeness min-max normalized
-    int[] suppmap;                  // supression map: disable sampling (image stack size)
+    int[] suppmap;                      // supression map: disable sampling (image stack size)
+    int suppmap_width;
+    int suppmap_height;
+    int suppmap_length;
 
-    int N, M, P, SZ;                    // stack dimensions (width, height, length, size)
+//    int N, M, P, SZ;                  // stack dimensions (width, height, length, size)
     String imdir, imnameshort;
     String midresdir = "";              // output directories, filenames
 
@@ -86,106 +88,100 @@ public class MTracker implements PlugIn {
 
     private static final long MEGABYTE = 1024L * 1024L;
 
-//    public static long bytesToMegabytes(long bytes) {
-//        return bytes / MEGABYTE;
-//    }
+    private static long bytesToMegabytes(long bytes) {
+        return bytes / MEGABYTE;
+    }
+
+    // simple struct containing image information
+    private class Image8 {
+        public int Width;
+        public int Height;
+        public int Length;
+        String short_title;
+        String image_dir;
+        byte[] data; // byte8 data array
+    }
 
     public void run(String s) {
 
         // read input image, store the most recent path in Prefs
-        String in_folder = Prefs.get("com.braincadet.phd1.dir", System.getProperty("user.home"));
+        String in_folder = Prefs.get("com.braincadet.phd.dir", System.getProperty("user.home"));
         OpenDialog.setDefaultDirectory(in_folder);
         OpenDialog dc = new OpenDialog("Select image");
         in_folder = dc.getDirectory();
-        Prefs.set("com.braincadet.phd1.dir", in_folder);
+        Prefs.set("com.braincadet.phd.dir", in_folder);
         String image_path = dc.getPath();
         if (image_path == null) return;
 
-        ImagePlus ip_load = new ImagePlus(image_path);
+        Image8 ip_load8 = load_image(image_path);
+        if (ip_load8 == null) {IJ.log("could not load " + image_path); return;}
 
-        if (ip_load == null) {
-            IJ.log(image_path + " was null");
-            return;
-        }
-        if (ip_load.getType() != ImagePlus.GRAY8) {
-            IJ.log("Image needs to be GRAY8.");
-            return;
-        }
+        int N = ip_load8.Width;  // ip_load.getWidth();
+        int M = ip_load8.Height; // ip_load.getHeight();
+        int P = ip_load8.Length; // ip_load.getStack().getSize();
+        int SZ = N * M * P;
 
-        N = ip_load.getWidth();
-        M = ip_load.getHeight();
-        P = ip_load.getStack().getSize();
-        SZ = N * M * P;
-
-        ip_load.setCalibration(null);
-
-        imnameshort = ip_load.getShortTitle();
-        imdir = ip_load.getOriginalFileInfo().directory;
-
-        // read image into byte[]
-        img = new float[SZ];
-        for (int z = 1; z <= P; z++) { // layer count, zcoord is layer-1
-            byte[] slc = (byte[]) ip_load.getStack().getPixels(z);
-            for (int x = 0; x < N; x++) {
-                for (int y = 0; y < M; y++) {
-                    img[(z - 1) * (N * M) + y * N + x] = slc[y * N + x] & 0xff;
-                }
-            }
-        }
+        imnameshort = ip_load8.short_title; // ip_load.getShortTitle();
+        imdir = ip_load8.image_dir; // ip_load.getOriginalFileInfo().directory;
+        byte[] I = ip_load8.data;
+//        // read image into byte[]
+//        img = new float[SZ];
+//        for (int z = 1; z <= P; z++) { // layer count, zcoord is layer-1
+//            byte[] slc = (byte[]) ip_load.getStack().getPixels(z);
+//            for (int x = 0; x < N; x++) {
+//                for (int y = 0; y < M; y++) {
+//                    img[(z - 1) * (N * M) + y * N + x] = slc[y * N + x] & 0xff;
+//                }
+//            }
+//        }
 
         if (Macro.getOptions() == null) {
 
             GenericDialog gd = new GenericDialog("PHD");
-            gd.addStringField("sigmas", Prefs.get("com.braincadet.phd1.sigmas", sigmas), 10);
-            gd.addStringField("th", Prefs.get("com.braincadet.phd1.th", th_csv), 10);
-            gd.addStringField("no", Prefs.get("com.braincadet.phd1.no", no_csv), 20);
-            gd.addStringField("ro", Prefs.get("com.braincadet.phd1.ro", ro_csv), 10);
-            gd.addStringField("ni", Prefs.get("com.braincadet.phd1.ni", ni_csv), 10);
-            gd.addStringField("step", Prefs.get("com.braincadet.phd1.step", step_csv), 10);
-            gd.addStringField("kappa", Prefs.get("com.braincadet.phd1.kappa", kappa_csv), 10);
-            gd.addStringField("ps", Prefs.get("com.braincadet.phd1.ps", pS_csv), 10);
-            gd.addStringField("pd", Prefs.get("com.braincadet.phd1.pd", pD_csv), 10);
-            gd.addStringField("krad", Prefs.get("com.braincadet.phd1.krad", krad_csv), 10);
-            gd.addStringField("kc", Prefs.get("com.braincadet.phd1.kc", kc_csv), 10);
-            gd.addNumericField("maxiter", Prefs.get("com.braincadet.phd1.maxiter", maxiter), 0, 5, "");
-            gd.addStringField("maxepoch", Prefs.get("com.braincadet.phd1.maxepoch", Integer.toString(maxepoch)), 10);
-//            gd.addCheckbox("savemidres", Prefs.get("com.braincadet.phd1.savemidres", savemidres));
-//            gd.addCheckbox("usetness", Prefs.get("com.braincadet.phd1.usetness", usetness));
+            gd.addStringField("sigmas",     Prefs.get("com.braincadet.phd.sigmas", sigmas), 10);
+            gd.addStringField("th",         Prefs.get("com.braincadet.phd.th", th_csv), 10);
+            gd.addStringField("no",         Prefs.get("com.braincadet.phd.no", no_csv), 20);
+            gd.addStringField("ro",         Prefs.get("com.braincadet.phd.ro", ro_csv), 10);
+            gd.addStringField("ni",         Prefs.get("com.braincadet.phd.ni", ni_csv), 10);
+            gd.addStringField("step",       Prefs.get("com.braincadet.phd.step", step_csv), 10);
+            gd.addStringField("kappa",      Prefs.get("com.braincadet.phd.kappa", kappa_csv), 10);
+            gd.addStringField("ps",         Prefs.get("com.braincadet.phd.ps", pS_csv), 10);
+            gd.addStringField("pd",         Prefs.get("com.braincadet.phd.pd", pD_csv), 10);
+            gd.addStringField("krad",       Prefs.get("com.braincadet.phd.krad", krad_csv), 10);
+            gd.addStringField("kc",         Prefs.get("com.braincadet.phd.kc", kc_csv), 10);
+            gd.addNumericField("maxiter",   Prefs.get("com.braincadet.phd.maxiter", maxiter), 0, 5, "");
+            gd.addStringField("maxepoch",   Prefs.get("com.braincadet.phd.maxepoch", Integer.toString(maxepoch)), 10);
 
             gd.showDialog();
             if (gd.wasCanceled()) return;
 
             sigmas = gd.getNextString();
-            Prefs.set("com.braincadet.phd1.sigmas", sigmas);
+            Prefs.set("com.braincadet.phd.sigmas", sigmas);
             th_csv = gd.getNextString();
-            Prefs.set("com.braincadet.phd1.th", th_csv);
+            Prefs.set("com.braincadet.phd.th", th_csv);
             no_csv = gd.getNextString();
-            Prefs.set("com.braincadet.phd1.no", no_csv);
+            Prefs.set("com.braincadet.phd.no", no_csv);
             ro_csv = gd.getNextString();
-            Prefs.set("com.braincadet.phd1.ro", ro_csv);
+            Prefs.set("com.braincadet.phd.ro", ro_csv);
             ni_csv = gd.getNextString();
-            Prefs.set("com.braincadet.phd1.ni", ni_csv);
+            Prefs.set("com.braincadet.phd.ni", ni_csv);
             step_csv = gd.getNextString();
-            Prefs.set("com.braincadet.phd1.step", step_csv);
+            Prefs.set("com.braincadet.phd.step", step_csv);
             kappa_csv = gd.getNextString();
-            Prefs.set("com.braincadet.phd1.kappa", kappa_csv);
+            Prefs.set("com.braincadet.phd.kappa", kappa_csv);
             pS_csv = gd.getNextString();
-            Prefs.set("com.braincadet.phd1.ps", pS_csv);
+            Prefs.set("com.braincadet.phd.ps", pS_csv);
             pD_csv = gd.getNextString();
-            Prefs.set("com.braincadet.phd1.pd", pD_csv);
+            Prefs.set("com.braincadet.phd.pd", pD_csv);
             krad_csv = gd.getNextString();
-            Prefs.set("com.braincadet.phd1.krad", krad_csv);
+            Prefs.set("com.braincadet.phd.krad", krad_csv);
             kc_csv = gd.getNextString();
-            Prefs.set("com.braincadet.phd1.kc", kc_csv);
+            Prefs.set("com.braincadet.phd.kc", kc_csv);
             maxiter = (int) gd.getNextNumber();
-            Prefs.set("com.braincadet.phd1.maxiter", maxiter);
+            Prefs.set("com.braincadet.phd.maxiter", maxiter);
             String maxepoch_str = gd.getNextString();
             maxepoch = (maxepoch_str.equals("inf")) ? Integer.MAX_VALUE : Integer.valueOf(maxepoch_str);
-            Prefs.set("com.braincadet.phd1.maxepoch", maxepoch);
-//            savemidres = gd.getNextBoolean();
-//            Prefs.set("com.braincadet.phd1.savemidres", savemidres);
-//            usetness = gd.getNextBoolean();
-//            Prefs.set("com.braincadet.phd1.usetness", usetness);
+            Prefs.set("com.braincadet.phd.maxepoch", maxepoch);
 
         } else {
 
@@ -203,12 +199,13 @@ public class MTracker implements PlugIn {
             maxiter = Integer.valueOf(Macro.getValue(Macro.getOptions(), "maxiter", String.valueOf(maxiter)));
             String maxepoch_str = Macro.getValue(Macro.getOptions(), "maxepoch", String.valueOf(maxepoch));
             maxepoch = (maxepoch_str.equals("inf")) ? Integer.MAX_VALUE : Integer.valueOf(maxepoch_str);
-//            savemidres = Boolean.valueOf(Macro.getValue(Macro.getOptions(), "savemidres", String.valueOf(false)));
-//            usetness = Boolean.valueOf(Macro.getValue(Macro.getOptions(), "usetness", String.valueOf(true)));
+
         }
 
+        IJ.log(ip_load8.image_dir + ip_load8.short_title + "_midres");
+
         if (savemidres) {
-            midresdir = ip_load.getOriginalFileInfo().directory + ip_load.getTitle() + "_midres";
+            midresdir =   ip_load8.image_dir + ip_load8.short_title + "_midres"; //  ip_load.getOriginalFileInfo().directory + ip_load.getTitle() + "_midres";
             Tools.createAndCleanDir(midresdir); // create midresult dir and initialize export/log
         }
 
@@ -266,87 +263,124 @@ public class MTracker implements PlugIn {
         for (int i = 0; i < dd.length; i++) kc[i] = Float.valueOf(dd[i]);
 
         //******************************************************************
-        ImageStack is_tness;
-        ImagePlus ip_tness;
-
         IJ.log(" -- prefiltering...");
+        // explanation ip_load is not necessary from this moment on, it was used for the fiji's tubularity
+        // at this point ImagePlus needs to become byte[] ip_load_array, and ImagePlus object deleted..
+        // since Frangi class uses byte[] as input and fiji's tubularity was using ImagePlus object
 
         long t1prep = System.currentTimeMillis();
 
-        is_tness = new ImageStack(N, M);
-        for (int i = 0; i < P; i++) {
-            float[] tt = new float[N * M];
-            Arrays.fill(tt, 0f);
-            is_tness.addSlice(new FloatProcessor(N, M, tt));
-        }
+//        is_tness = new ImageStack(N, M);
+//        for (int i = 0; i < P; i++) {
+//            float[] tt = new float[N * M];
+//            Arrays.fill(tt, 0f);
+//            is_tness.addSlice(new FloatProcessor(N, M, tt));
+//        }
 
-        ip_tness = new ImagePlus("tness", is_tness);
+//        ip_tness = new ImagePlus("tness", is_tness);
+
+        ArrayList<Float> sigs = new ArrayList<Float>();
         String[] readLn = sigmas.trim().split(",");
 
         for (int i = 0; i < readLn.length; i++) {
-            float sig = Float.valueOf(readLn[i].trim()).floatValue();
-            TubenessProcessor tp = new TubenessProcessor(sig, false);
-            ImagePlus result = tp.generateImage(ip_load);
-            ImageCalculator ic = new ImageCalculator();
+            sigs.add(Float.valueOf(readLn[i].trim()).floatValue());
+//            TubenessProcessor tp = new TubenessProcessor(sig, false);
+//            ImagePlus result = tp.generateImage(ip_load);
+//            ImageCalculator ic = new ImageCalculator();
+
             // average, multipy
 //          IJ.run(result, "Multiply...", "value=" + IJ.d2s(1f/readLn.length,3) + " stack");
 //          ic.run("Add 32-bit stack", ip_tness, result); // result of the addition is placed in ip_tness
+
             // max
-            ic.run("Max 32-bit stack", ip_tness, result);
+//            ic.run("Max 32-bit stack", ip_tness, result);
         }
 
-        ip_tness.setCalibration(null);
+        // plot sigs
+//        for (int i = 0; i < sigs.size(); i++) {
+//            IJ.log("sigs["+i+"] = " + sigs.get(i));
+//        }
+//        ip_tness.setCalibration(null);
+//        if (savemidres) {
+//            ImagePlus temp = ip_tness.duplicate();
+//            IJ.run(temp, "8-bit", ""); // convert to 8 bit before saving
+//            IJ.saveAs(temp, "Zip", midresdir + File.separator + "tness," + sigmas + ".zip");
+//        }
 
-        if (savemidres) {
-            ImagePlus temp = ip_tness.duplicate();
-            IJ.run(temp, "8-bit", ""); // convert to 8 bit before saving
-            IJ.saveAs(temp, "Zip", midresdir + File.separator + "tness," + sigmas + ".zip");
+        Frangi vess_filt = new Frangi(sigs); // instantiate new vesselness filtering class with the default parameters
+
+        // float[] tness formation...[0,1] value range
+        if (P>1){
+            // 3d
+//            t1 = System.currentTimeMillis();
+//            J8 = f.run3d_byte(I, N, M, P, Vx, Vy, Vz, true); // threaded
+            tness = vess_filt.run3d_float(I, N, M, P, null, null, null, true);
+//            t2 = System.currentTimeMillis();
+//            IJ.log("t = " + IJ.d2s((t2 - t1) / 1000f,2) + " [sec]");
+//            new ImagePlus(imnameshort+"_Vess",  array2imagestack(J, N, M, P)).show();
+        }
+        else {
+            // 2d
+//            t1 = System.currentTimeMillis();
+//            J8 = f.run2d_byte(I, N, M, P, Vx, Vy, Vz); // no threading
+//            J = f.run2d_float(I, N, M, P, Vx, Vy, Vz);
+            tness = vess_filt.run2d_float(I, N, M, P, null, null, null);
+//            t2 = System.currentTimeMillis();
+//            IJ.log("t = " + IJ.d2s((t2 - t1) / 1000f,2) + " [sec]");
+//            new ImagePlus(imnameshort+"_Vess",  array2imagestack(J, N, M, P)).show();
         }
 
         // tubeness min-max normalize and store in an array for later and extract locations in a separate array
-        float tnessmin = Float.POSITIVE_INFINITY;
-        float tnessmax = Float.NEGATIVE_INFINITY;
-        tness = new float[SZ];
-        int[][] locationXYZ = new int[SZ][3]; // random sampling weighted with the normalized tubeness as importance function
+//        float tnessmin = Float.POSITIVE_INFINITY;
+//        float tnessmax = Float.NEGATIVE_INFINITY;
+//        tness = new float[SZ];
 
-        for (int z = 1; z <= P; z++) { // layer count, zcoord is layer-1
+//        int[][] locationXYZ = new int[SZ][3]; // random sampling weighted with the normalized tubeness as importance function
 
-            float[] slc_float = null;
-            byte[] slc_byte = null;
+//        for (int z = 1; z <= P; z++) { // layer count, zcoord is layer-1
 
-            if (usetness)
-                slc_float = (float[]) ip_tness.getStack().getPixels(z);
-            else
-                slc_byte = (byte[]) ip_load.getStack().getPixels(z);
+//            float[] slc_float = null;
+//            byte[] slc_byte = null;
 
-            for (int x = 0; x < N; x++) {
-                for (int y = 0; y < M; y++) {
-                    int ii = (z - 1) * (N * M) + y * N + x;
+//            if (usetness)
+//                slc_float = (float[]) ip_tness.getStack().getPixels(z);
+//            else
+//                slc_byte = (byte[]) ip_load.getStack().getPixels(z);
 
-                    if (usetness)
-                        tness[ii] = slc_float[y * N + x];
-                    else
-                        tness[ii] = (float) (slc_byte[y * N + x] & 0xff);
+//            for (int x = 0; x < N; x++) {
+//                for (int y = 0; y < M; y++) {
+//                    int ii = (z - 1) * (N * M) + y * N + x;
 
-                    locationXYZ[ii][0] = x;
-                    locationXYZ[ii][1] = y;
-                    locationXYZ[ii][2] = (z - 1);
+//                    if (usetness)
+//                        tness[ii] = slc_float[y * N + x];
+//                    else
+//                        tness[ii] = (float) (slc_byte[y * N + x] & 0xff);
 
-                    if (tness[ii] < tnessmin) tnessmin = tness[ii];
-                    if (tness[ii] > tnessmax) tnessmax = tness[ii];
+//                    locationXYZ[ii][0] = x;
+//                    locationXYZ[ii][1] = y;
+//                    locationXYZ[ii][2] = (z - 1);
 
-                }
-            }
-        }
+//                    if (tness[ii] < tnessmin) tnessmin = tness[ii];
+//                    if (tness[ii] > tnessmax) tnessmax = tness[ii];
 
-        for (int i = 0; i < SZ; i++) {
-            tness[i] = (tnessmax - tnessmin > Float.MIN_VALUE) ? ((tness[i] - tnessmin) / (tnessmax - tnessmin)) : 0;
-        }
+//                }
+//            }
+//        }
+
+//        for (int i = 0; i < SZ; i++) {
+//            tness[i] = (tnessmax - tnessmin > Float.MIN_VALUE) ? ((tness[i] - tnessmin) / (tnessmax - tnessmin)) : 0;
+//        }
 
         long t2prep = System.currentTimeMillis();
         IJ.log("t_prep = " + IJ.d2s((t2prep - t1prep) / 1000f,2) + " [sec]");
 
-        suppmap = new int[SZ]; // suppression map with node tags
+//        ImagePlus ip_vess   = new ImagePlus(imnameshort+"_Vess",  array2imagestack(tness, N, M, P));
+//        if (true) {IJ.log("stop"); return;} // debug
+
+        suppmap         = new int[SZ]; // suppression map with node tags
+        suppmap_width   = ip_load8.Width;
+        suppmap_height  = ip_load8.Height;
+        suppmap_length  = ip_load8.Length;
 
         // go through comma separated parameter values
         for (int i01 = 0; i01 < no.length; i01++) {
@@ -389,10 +423,15 @@ public class MTracker implements PlugIn {
                                                 ArrayList<Integer> locs = new ArrayList<Integer>();     // list of candidate locations for seed points
                                                 ArrayList<Float> locsw = new ArrayList<Float>();       // weights assigned to each location
 
-                                                for (int z = ((P == 1) ? 1 : 2); z <= ((P == 1) ? P : P - 1); z++) { // layer count, zcoord is layer-1
+                                                for (int z = ((P <= 3) ? 1 : 2); z <= ((P <= 3) ? P : P - 1); z++) { // layer count, zcoord is layer-1
                                                     Polygon maxx;
                                                     MaximumFinder mf = new MaximumFinder();
-                                                    maxx = mf.getMaxima(ip_tness.getStack().getProcessor(z), th[i09], false);
+
+//                                                    maxx = mf.getMaxima(ip_tness.getStack().getProcessor(z), th[i09], false);
+
+                                                    FloatProcessor fp = array2processor(tness, z-1, N, M);
+                                                    maxx = mf.getMaxima(fp, th[i09], false); // get FloatProcessor from float[]
+
 
                                                     for (int i = 0; i < maxx.npoints; i++) {
                                                         int ii = (z - 1) * (N * M) + maxx.ypoints[i] * N + maxx.xpoints[i];
@@ -419,10 +458,12 @@ public class MTracker implements PlugIn {
                                                         tt.add(new int[]{x, y, z});
                                                     }
 
-                                                    exportlocsxyz(tt, 0.3f, Node.VIOLET, midresdir, "seedpool_tolerance=" + IJ.d2s(th[i09], 2));
+                                                    exportlocsxyz(tt, 0.3f, Node.VIOLET, midresdir, "seedpool_tolerance=" + IJ.d2s(th[i09], 6));
 
                                                     tt.clear();
                                                 }
+
+//                                                if (true) continue; // don't do the tracing (debug usage)
 
                                                 IJ.log("-- initialize...");
                                                 MultiTT mtt; // multi-object tracker
@@ -488,7 +529,7 @@ public class MTracker implements PlugIn {
                                                     ArrayList<int[]> N_o = new ArrayList<int[]>();
 
                                                     //********** initialization **********//
-                                                    mtt._init(no[i01], step[i05], locs, locsw, N_o, img, N, M, P, tness, suppmap); // , template_ovrly
+                                                    mtt._init(no[i01], step[i05], locs, locsw, N_o, N, M, P, tness, suppmap); // , template_ovrly img,
                                                     if (N_o.size() == 0) {
 
                                                         IJ.log("|N_o|=0");
@@ -546,7 +587,7 @@ public class MTracker implements PlugIn {
 
                                                     } else IJ.log("mtt.Xk.size() == 0");
 
-                                                    if (locs.size() == 0 || epochcnt == maxepoch || epochcnt%5 == 0) { // each # of iterations
+                                                    if (locs.size() == 0 || epochcnt == maxepoch || epochcnt % EPOCH_LOG == 0) { // put up with reconstruction every EPOCH_LOG
                                                         String outdir = delindir + IJ.d2s(epochcnt, 0);
                                                         Tools.createDir(outdir); // create if nonexistent
                                                         export_reconstruction(mtt.Y, outdir+File.separator+imnameshort);
@@ -571,6 +612,73 @@ public class MTracker implements PlugIn {
                 }
             }
         }
+
+    }
+
+    private ImageStack array2imagestack(float[] a, int W, int H, int L) {
+
+        ImageStack is = new ImageStack(W, H);
+
+        for (int z = 0; z < L; z++) {
+            float[] ai = new float[W*H];
+            for (int j = 0; j < W * H; j++) {
+                int x = j % W;
+                int y = j / W;
+                ai[j] = a[z*W*H+y*W+x];
+            }
+
+            is.addSlice(new FloatProcessor(W, H, ai));
+
+        }
+
+        return is;
+
+    }
+
+    private Image8 load_image(String image_path){
+
+        ImagePlus input_image = new ImagePlus(image_path);
+
+        if (input_image == null) {
+            return null;
+        }
+
+        if (input_image.getType() != ImagePlus.GRAY8) {
+            return null;
+        }
+
+        Image8 img = new Image8();
+        img.Width   = input_image.getWidth();
+        img.Height  = input_image.getHeight();
+        img.Length  = input_image.getStack().getSize();
+        img.short_title = input_image.getShortTitle();
+        img.image_dir = input_image.getOriginalFileInfo().directory;
+
+        img.data = new byte[img.Width*img.Height*img.Length]; // read image into byte[]
+        for (int z = 1; z <= img.Length; z++) { // layer count, zcoord is layer-1
+            byte[] slc = (byte[]) input_image.getStack().getPixels(z);
+            for (int x = 0; x < img.Width; x++) {
+                for (int y = 0; y < img.Height; y++) {
+                    img.data[(z - 1) * (img.Width * img.Height) + y * img.Width + x] = slc[y * img.Width + x];// & 0xff;
+                }
+            }
+        }
+
+        return img;
+
+    }
+
+    private FloatProcessor array2processor(float[] a, int z_coord, int W, int H) {
+
+        float[] lay = new float[W*H];
+
+        for (int j = 0; j < W * H; j++) {
+            int x = j % W;
+            int y = j / W;
+            lay[j] = a[z_coord *W*H + y*W + x];
+        }
+
+        return new FloatProcessor(W, H, lay);
 
     }
 
@@ -1019,8 +1127,7 @@ public class MTracker implements PlugIn {
 
             logWriter.close();
 
-        } catch (IOException e) {
-        }
+        } catch (IOException e) {}
 
     }
 
@@ -1245,25 +1352,25 @@ public class MTracker implements PlugIn {
 
     }
 
-    public ImagePlus getSuppMap() { // String title
+    public ImagePlus getSuppMap() {
 
-        ImageStack outis = new ImageStack(N, M);
+        ImageStack outis = new ImageStack(suppmap_width, suppmap_height);
 
-        for (int z = 1; z <= P; z++) { // layer count, zcoord is layer-1
+        for (int z = 1; z <= suppmap_length; z++) { // layer count, zcoord is layer-1
 
-            float[] slc = new float[N * M];
+            float[] slc = new float[suppmap_width * suppmap_height];
 
-            for (int x = 0; x < N; x++) {
-                for (int y = 0; y < M; y++) {
+            for (int x = 0; x < suppmap_width; x++) {
+                for (int y = 0; y < suppmap_height; y++) {
 
-                    int ii = (z - 1) * (N * M) + y * N + x;
+                    int ii = (z - 1) * (suppmap_width * suppmap_height) + y * suppmap_width + x;
 
-                    slc[y * N + x] = suppmap[ii];
+                    slc[y * suppmap_width + x] = suppmap[ii];
 
                 }
             }
 
-            outis.addSlice(new FloatProcessor(N, M, slc));
+            outis.addSlice(new FloatProcessor(suppmap_width, suppmap_height, slc));
 
         }
 
