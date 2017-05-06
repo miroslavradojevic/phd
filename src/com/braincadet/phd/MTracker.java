@@ -202,7 +202,7 @@ public class MTracker implements PlugIn {
 
         }
 
-        IJ.log(ip_load8.image_dir + ip_load8.short_title + "_midres");
+//        IJ.log(ip_load8.image_dir + ip_load8.short_title + "_midres");
 
         if (savemidres) {
             midresdir =   ip_load8.image_dir + ip_load8.short_title + "_midres"; //  ip_load.getOriginalFileInfo().directory + ip_load.getTitle() + "_midres";
