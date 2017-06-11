@@ -104,39 +104,15 @@ public class MTracker implements PlugIn {
 
     public void run(String s) {
 
-        // read input image, store the most recent path in Prefs
+        String image_path; // read input image, store the most recent path in Prefs
         String in_folder = Prefs.get("com.braincadet.phd.dir", System.getProperty("user.home"));
         OpenDialog.setDefaultDirectory(in_folder);
         OpenDialog dc = new OpenDialog("Select image");
         in_folder = dc.getDirectory();
         Prefs.set("com.braincadet.phd.dir", in_folder);
-        String image_path = dc.getPath();
-        if (image_path == null) return;
-
-        Image8 ip_load8 = load_image(image_path);
-        if (ip_load8 == null) {IJ.log("could not load " + image_path); return;}
-
-        int N = ip_load8.Width;  // ip_load.getWidth();
-        int M = ip_load8.Height; // ip_load.getHeight();
-        int P = ip_load8.Length; // ip_load.getStack().getSize();
-        int SZ = N * M * P;
-
-        imnameshort = ip_load8.short_title; // ip_load.getShortTitle();
-        imdir = ip_load8.image_dir; // ip_load.getOriginalFileInfo().directory;
-        byte[] I = ip_load8.data;
-//        // read image into byte[]
-//        img = new float[SZ];
-//        for (int z = 1; z <= P; z++) { // layer count, zcoord is layer-1
-//            byte[] slc = (byte[]) ip_load.getStack().getPixels(z);
-//            for (int x = 0; x < N; x++) {
-//                for (int y = 0; y < M; y++) {
-//                    img[(z - 1) * (N * M) + y * N + x] = slc[y * N + x] & 0xff;
-//                }
-//            }
-//        }
+        image_path = dc.getPath();
 
         if (Macro.getOptions() == null) {
-
             GenericDialog gd = new GenericDialog("PHD");
             gd.addStringField("sigmas",     Prefs.get("com.braincadet.phd.sigmas", sigmas), 10);
             gd.addStringField("th",         Prefs.get("com.braincadet.phd.th", th_csv), 10);
@@ -182,9 +158,7 @@ public class MTracker implements PlugIn {
             String maxepoch_str = gd.getNextString();
             maxepoch = (maxepoch_str.equals("inf")) ? Integer.MAX_VALUE : Integer.valueOf(maxepoch_str);
             Prefs.set("com.braincadet.phd.maxepoch", maxepoch);
-
         } else {
-
             sigmas = Macro.getValue(Macro.getOptions(), "sigmas", sigmas);
             th_csv = Macro.getValue(Macro.getOptions(), "th", th_csv);
             no_csv = Macro.getValue(Macro.getOptions(), "no", no_csv);
@@ -199,10 +173,41 @@ public class MTracker implements PlugIn {
             maxiter = Integer.valueOf(Macro.getValue(Macro.getOptions(), "maxiter", String.valueOf(maxiter)));
             String maxepoch_str = Macro.getValue(Macro.getOptions(), "maxepoch", String.valueOf(maxepoch));
             maxepoch = (maxepoch_str.equals("inf")) ? Integer.MAX_VALUE : Integer.valueOf(maxepoch_str);
-
         }
 
-//        IJ.log(ip_load8.image_dir + ip_load8.short_title + "_midres");
+//        if (true) return;
+//        image_path = "/Users/miroslav/exp.syn/test.65/65_cor=0.0_snr=5.tif";
+
+        if (image_path == null) return;
+
+        Image8 ip_load8 = load_image(image_path);
+
+        if (ip_load8 == null) {
+            IJ.log("could not load " + image_path);
+            return;
+        }
+
+//        IJ.log("loaded image");
+
+        int N = ip_load8.Width;  // ip_load.getWidth();
+        int M = ip_load8.Height; // ip_load.getHeight();
+        int P = ip_load8.Length; // ip_load.getStack().getSize();
+
+        imnameshort = ip_load8.short_title; // ip_load.getShortTitle();
+        imdir = ip_load8.image_dir; // ip_load.getOriginalFileInfo().directory;
+        byte[] I = ip_load8.data;
+
+//        // read image into byte[]
+//        img = new float[SZ];
+//        for (int z = 1; z <= P; z++) { // layer count, zcoord is layer-1
+//            byte[] slc = (byte[]) ip_load.getStack().getPixels(z);
+//            for (int x = 0; x < N; x++) {
+//                for (int y = 0; y < M; y++) {
+//                    img[(z - 1) * (N * M) + y * N + x] = slc[y * N + x] & 0xff;
+//                }
+//            }
+//        }
+
 
         if (savemidres) {
             midresdir =   ip_load8.image_dir + ip_load8.short_title + "_midres"; //  ip_load.getOriginalFileInfo().directory + ip_load.getTitle() + "_midres";
@@ -261,6 +266,13 @@ public class MTracker implements PlugIn {
         if (dd.length == 0) return;
         kc = new float[dd.length];
         for (int i = 0; i < dd.length; i++) kc[i] = Float.valueOf(dd[i]);
+
+        //******************************************************************
+        // SYNTH: extract cor and snr parameters from the image name
+        dd = imnameshort.split("_");
+        imnameshort = dd[0];
+        float cor = Float.valueOf(dd[1].substring(4));
+        float snr = Float.valueOf(dd[2].substring(4));
 
         //******************************************************************
         IJ.log(" -- prefiltering...");
@@ -377,7 +389,7 @@ public class MTracker implements PlugIn {
 //        ImagePlus ip_vess   = new ImagePlus(imnameshort+"_Vess",  array2imagestack(tness, N, M, P));
 //        if (true) {IJ.log("stop"); return;} // debug
 
-        suppmap         = new int[SZ]; // suppression map with node tags
+        suppmap         = new int[N * M * P]; // suppression map with node tags
         suppmap_width   = ip_load8.Width;
         suppmap_height  = ip_load8.Height;
         suppmap_length  = ip_load8.Length;
@@ -491,6 +503,23 @@ public class MTracker implements PlugIn {
                                                         IJ.d2s(pS[i07], 2)      + "_" +
                                                         IJ.d2s(pD[i08], 2)      + "_" +
                                                         IJ.d2s(kc[i10], 1)      + "_";
+
+                                                // SYNTH: redefine the output directory name to include cor and snr
+                                                delindir = imdir + "PHD.cor.snr.sig.th.no.ro.ni.krad.stp.kapa.ps.pd.kc.e_" +
+                                                        IJ.d2s(cor, 1)          + "_" + // to be compliant with dir naming in vaa3d experiments
+                                                        IJ.d2s(snr, 0)          + "_" + // expect integer snrs, to be compliant with dir naming in vaa3d experiments
+                                                        sigmas                  + "_" +
+                                                        IJ.d2s(th[i09], 2)      + "_" +
+                                                        IJ.d2s(no[i01], 0)      + "_" +
+                                                        IJ.d2s(ro[i02], 0)      + "_" +
+                                                        IJ.d2s(ni[i03], 0)      + "_" +
+                                                        IJ.d2s(krad[i04], 0)    + "_" +
+                                                        IJ.d2s(step[i05], 0)    + "_" +
+                                                        IJ.d2s(kappa[i06], 1)   + "_" +
+                                                        IJ.d2s(pS[i07], 2)      + "_" +
+                                                        IJ.d2s(pD[i08], 2)      + "_" +
+                                                        IJ.d2s(kc[i10], 1)      + "_";
+
 
 
                                                 IJ.log("-- multi-object filtering...");
@@ -635,17 +664,44 @@ public class MTracker implements PlugIn {
 
     }
 
+    private static String getFileExtension(String file_path)
+    {
+        String extension = "";
+
+        int i = file_path.lastIndexOf('.');
+        if (i >= 0) {
+            extension = file_path.substring(i+1);
+        }
+
+        return extension;
+    }
+
     private Image8 load_image(String image_path){
+
+        if (
+                !(
+                getFileExtension(image_path).equalsIgnoreCase("tif") ||
+                getFileExtension(image_path).equalsIgnoreCase("zip")
+                )
+                )
+        {
+            IJ.log("Input image can be tif or zip. Exiting...");
+            return null;
+        }
 
         ImagePlus input_image = new ImagePlus(image_path);
 
         if (input_image == null) {
+            IJ.log("input_image == null");
             return null;
         }
 
         if (input_image.getType() != ImagePlus.GRAY8) {
+            IJ.log("input_image.getType() != ImagePlus.GRAY8");
             return null;
         }
+
+        IJ.run(input_image, "Flip Vertically", "stack"); // SYNTH: flip the tif image vertically before the computation, to be compliant with the vaa3d image matrix
 
         Image8 img = new Image8();
         img.Width   = input_image.getWidth();
