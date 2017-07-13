@@ -13,5 +13,3 @@ ImageJ plugin, doi: 10.1093/bioinformatics/btw751
 ### ImageJ macro for batch processing ###
 
 * Writing tests
-* Code review
-* Other guidelines
