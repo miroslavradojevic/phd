@@ -8,7 +8,7 @@ ImageJ plugin, doi: 10.1093/bioinformatics/btw751
 * copy [vess_.jar](https://bitbucket.org/miroslavradojevic/vess) to ImageJ plugins directory
 * Open ImageJ > BrainCadet > PHD
 * select file (works with 8bit images and image stacks)
-* parameter menu
+* choose values in the parameter menu
 
 ### ImageJ macro for batch processing ###
 
