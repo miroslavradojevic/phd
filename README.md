@@ -1,14 +1,15 @@
-# README #
+# Neuron tracing using probability hypothesis filtering #
 
-This README would normally document whatever steps are necessary to get your application up and running.
+ImageJ plugin .
 
-### What is this repository for? ###
+### Setup ###
 
-* Quick summary
-* Version
+* copy phd_.jar to ImageJ plugins directory
+* copy less_.jar to ImageJ plugins directory
+* Open ImageJ > Bla > Bla
 * [Learn Markdown](https://bitbucket.org/tutorials/markdowndemo)
 
-### How do I get set up? ###
+### Usage ###
 
 * Summary of set up
 * Configuration
