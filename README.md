@@ -6,7 +6,8 @@ ImageJ plugin, doi: 10.1093/bioinformatics/btw751
 
 * copy phd_.jar to ImageJ plugins directory
 * copy [vess_.jar](https://bitbucket.org/miroslavradojevic/vess) to ImageJ plugins directory
-* Open ImageJ > Bla > Bla
+* Open ImageJ > BrainCadet > PHD
+* select file (accepts 8bit images)
 
 ### Usage ###
 
