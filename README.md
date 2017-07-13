@@ -12,4 +12,12 @@ ImageJ plugin, doi: 10.1093/bioinformatics/btw751
 
 ### ImageJ macro for batch processing ###
 
-* Writing tests
+* parameter grid 
+* possibility to use the parameter grid to process all existing *.tif 8bit images in given directory 
+* ij macro: ij-macro/run_phd.ijm
+* test case (~/test/ directory with run_phd.ijm and img.tif), example call: 
+```
+#!java
+
+java -Xmx4g -jar ~/ImageJ/ij.jar -ijpath ~/ImageJ/plugins/ -batch ~/test/run_phd.ijm ~/test/
+```
