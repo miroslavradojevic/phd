@@ -1,6 +1,6 @@
 # Neuron tracing using probability hypothesis filtering #
 
-ImageJ plugin, [https://doi.org/10.1093/bioinformatics/btw751](Link URL)
+ImageJ plugin, [doi.org/10.1093/bioinformatics/btw751](https://doi.org/10.1093/bioinformatics/btw751)
 
 ### Usage ###
 
