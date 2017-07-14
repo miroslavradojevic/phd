@@ -51,11 +51,11 @@ public class MTracker implements PlugIn {
     String kc_csv = "4";
 
     int maxepoch = 150;                  // epoch limit
-    int EPOCH_LOG = 10;                  //
+    int EPOCH_LOG = 10;                  // export reconstruction each EPOCH_LOG cycles
 
     // save results
     int maxiter = 200;                  // iteration limit (hundreds are fine)
-    boolean savemidres = false;         // save partial results
+    boolean savemidres = true;          // save partial results
     float[] tness;                      // tubeness min-max normalized
 
     int[] suppmap;                      // supression map: disable sampling (image stack size)
@@ -67,7 +67,7 @@ public class MTracker implements PlugIn {
     String imdir, imnameshort;
     String midresdir = "";              // output directories, filenames
 
-    // loggers
+    // loggers (used in savemidres)
     public int[] X_cnt = new int[]{0}; // these are counters used in logging to count lines in swc output
     public String X_swclog = "";
 
@@ -127,6 +127,7 @@ public class MTracker implements PlugIn {
             gd.addStringField("kc",         Prefs.get("com.braincadet.phd.kc", kc_csv), 10);
             gd.addNumericField("maxiter",   Prefs.get("com.braincadet.phd.maxiter", maxiter), 0, 5, "");
             gd.addStringField("maxepoch",   Prefs.get("com.braincadet.phd.maxepoch", Integer.toString(maxepoch)), 10);
+            gd.addCheckbox("savemidres",    Prefs.get("com.braincadet.phd.savemidres", savemidres));
 
             gd.showDialog();
             if (gd.wasCanceled()) return;
@@ -158,6 +159,8 @@ public class MTracker implements PlugIn {
             String maxepoch_str = gd.getNextString();
             maxepoch = (maxepoch_str.equals("inf")) ? Integer.MAX_VALUE : Integer.valueOf(maxepoch_str);
             Prefs.set("com.braincadet.phd.maxepoch", maxepoch);
+            savemidres = gd.getNextBoolean();
+            Prefs.set("com.braincadet.phd.savemidres", savemidres);
         } else {
             sigmas = Macro.getValue(Macro.getOptions(), "sigmas", sigmas);
             th_csv = Macro.getValue(Macro.getOptions(), "th", th_csv);
@@ -173,9 +176,9 @@ public class MTracker implements PlugIn {
             maxiter = Integer.valueOf(Macro.getValue(Macro.getOptions(), "maxiter", String.valueOf(maxiter)));
             String maxepoch_str = Macro.getValue(Macro.getOptions(), "maxepoch", String.valueOf(maxepoch));
             maxepoch = (maxepoch_str.equals("inf")) ? Integer.MAX_VALUE : Integer.valueOf(maxepoch_str);
+            savemidres = Boolean.valueOf(Macro.getValue(Macro.getOptions(), "savemidres", String.valueOf(savemidres)));
         }
 
-//        if (true) return;
 //        image_path = "/Users/miroslav/exp.syn/test.65/65_cor=0.0_snr=5.tif";
 
         if (image_path == null) return;
@@ -186,8 +189,6 @@ public class MTracker implements PlugIn {
             IJ.log("could not load " + image_path);
             return;
         }
-
-//        IJ.log("loaded image");
 
         int N = ip_load8.Width;  // ip_load.getWidth();
         int M = ip_load8.Height; // ip_load.getHeight();
@@ -207,7 +208,6 @@ public class MTracker implements PlugIn {
 //                }
 //            }
 //        }
-
 
         if (savemidres) {
             midresdir =   ip_load8.image_dir + ip_load8.short_title + "_midres"; //  ip_load.getOriginalFileInfo().directory + ip_load.getTitle() + "_midres";
@@ -269,13 +269,15 @@ public class MTracker implements PlugIn {
 
         //******************************************************************
         // SYNTH: extract cor and snr parameters from the image name
-        dd = imnameshort.split("_");
-        imnameshort = dd[0];
-        float cor = Float.valueOf(dd[1].substring(4));
-        float snr = Float.valueOf(dd[2].substring(4));
+//        dd = imnameshort.split("_");
+//        IJ.log(Arrays.toString(dd));
+//        imnameshort = dd[0];
+//        float cor = Float.valueOf(dd[1].substring(4));
+//        float snr = Float.valueOf(dd[2].substring(4));
 
         //******************************************************************
         IJ.log(" -- prefiltering...");
+
         // explanation ip_load is not necessary from this moment on, it was used for the fiji's tubularity
         // at this point ImagePlus needs to become byte[] ip_load_array, and ImagePlus object deleted..
         // since Frangi class uses byte[] as input and fiji's tubularity was using ImagePlus object
@@ -387,7 +389,6 @@ public class MTracker implements PlugIn {
         IJ.log("t_prep = " + IJ.d2s((t2prep - t1prep) / 1000f,2) + " [sec]");
 
 //        ImagePlus ip_vess   = new ImagePlus(imnameshort+"_Vess",  array2imagestack(tness, N, M, P));
-//        if (true) {IJ.log("stop"); return;} // debug
 
         suppmap         = new int[N * M * P]; // suppression map with node tags
         suppmap_width   = ip_load8.Width;
@@ -475,8 +476,6 @@ public class MTracker implements PlugIn {
                                                     tt.clear();
                                                 }
 
-//                                                if (true) continue; // don't do the tracing (debug usage)
-
                                                 IJ.log("-- initialize...");
                                                 MultiTT mtt; // multi-object tracker
                                                 mtt = new MultiTT(P == 1, no[i01], ro[i02], ni[i03], krad[i04], step[i05], kappa[i06], pS[i07], pD[i08], th[i09], kc[i10]);
@@ -505,20 +504,20 @@ public class MTracker implements PlugIn {
                                                         IJ.d2s(kc[i10], 1)      + "_";
 
                                                 // SYNTH: redefine the output directory name to include cor and snr
-                                                delindir = imdir + "PHD.cor.snr.sig.th.no.ro.ni.krad.stp.kapa.ps.pd.kc.e_" +
-                                                        IJ.d2s(cor, 1)          + "_" + // to be compliant with dir naming in vaa3d experiments
-                                                        IJ.d2s(snr, 0)          + "_" + // expect integer snrs, to be compliant with dir naming in vaa3d experiments
-                                                        sigmas                  + "_" +
-                                                        IJ.d2s(th[i09], 2)      + "_" +
-                                                        IJ.d2s(no[i01], 0)      + "_" +
-                                                        IJ.d2s(ro[i02], 0)      + "_" +
-                                                        IJ.d2s(ni[i03], 0)      + "_" +
-                                                        IJ.d2s(krad[i04], 0)    + "_" +
-                                                        IJ.d2s(step[i05], 0)    + "_" +
-                                                        IJ.d2s(kappa[i06], 1)   + "_" +
-                                                        IJ.d2s(pS[i07], 2)      + "_" +
-                                                        IJ.d2s(pD[i08], 2)      + "_" +
-                                                        IJ.d2s(kc[i10], 1)      + "_";
+//                                                delindir = imdir + "PHD.cor.snr.sig.th.no.ro.ni.krad.stp.kapa.ps.pd.kc.e_" +
+//                                                        IJ.d2s(cor, 1)          + "_" + // to be compliant with dir naming in vaa3d experiments
+//                                                        IJ.d2s(snr, 0)          + "_" + // expect integer snrs, to be compliant with dir naming in vaa3d experiments
+//                                                        sigmas                  + "_" +
+//                                                        IJ.d2s(th[i09], 2)      + "_" +
+//                                                        IJ.d2s(no[i01], 0)      + "_" +
+//                                                        IJ.d2s(ro[i02], 0)      + "_" +
+//                                                        IJ.d2s(ni[i03], 0)      + "_" +
+//                                                        IJ.d2s(krad[i04], 0)    + "_" +
+//                                                        IJ.d2s(step[i05], 0)    + "_" +
+//                                                        IJ.d2s(kappa[i06], 1)   + "_" +
+//                                                        IJ.d2s(pS[i07], 2)      + "_" +
+//                                                        IJ.d2s(pD[i08], 2)      + "_" +
+//                                                        IJ.d2s(kc[i10], 1)      + "_";
 
 
 
@@ -547,10 +546,26 @@ public class MTracker implements PlugIn {
 
                                                         IJ.log("locs.size() == 0");
 
-                                                        // export reconstruction
+                                                        //-- export reconstruction
                                                         String outdir = delindir + IJ.d2s(epochcnt, 0);
                                                         Tools.createDir(outdir); // create if nonexistent
-                                                        export_reconstruction(mtt.Y, outdir+File.separator+imnameshort);
+                                                        String SwcHeader = generateSwcHeader( // concatenate the params used into swc header format
+                                                                imnameshort,
+                                                                sigmas,
+                                                                no[i01],
+                                                                ro[i02],
+                                                                krad[i04],
+                                                                step[i05],
+                                                                kappa[i06],
+                                                                pS[i07],
+                                                                pD[i08],
+                                                                th[i09],
+                                                                kc[i10],
+                                                                maxiter,
+                                                                maxepoch,
+                                                                savemidres
+                                                        );
+                                                        export_reconstruction(mtt.Y, outdir+File.separator+imnameshort, SwcHeader);
 
                                                         break; // go out of while loop
                                                     }
@@ -566,7 +581,25 @@ public class MTracker implements PlugIn {
                                                         // export reconstruction
                                                         String outdir = delindir + IJ.d2s(epochcnt, 0);
                                                         Tools.createDir(outdir); // create if nonexistent
-                                                        export_reconstruction(mtt.Y, outdir+File.separator+imnameshort);
+
+                                                        String SwcHeader = generateSwcHeader( // concatenate the params used into swc header format
+                                                                imnameshort,
+                                                                sigmas,
+                                                                no[i01],
+                                                                ro[i02],
+                                                                krad[i04],
+                                                                step[i05],
+                                                                kappa[i06],
+                                                                pS[i07],
+                                                                pD[i08],
+                                                                th[i09],
+                                                                kc[i10],
+                                                                maxiter,
+                                                                maxepoch,
+                                                                savemidres
+                                                        );
+
+                                                        export_reconstruction(mtt.Y, outdir+File.separator+imnameshort, SwcHeader);
 
                                                         break; // out of while loop
                                                     }
@@ -616,10 +649,28 @@ public class MTracker implements PlugIn {
 
                                                     } else IJ.log("mtt.Xk.size() == 0");
 
-                                                    if (locs.size() == 0 || epochcnt == maxepoch || epochcnt % EPOCH_LOG == 0) { // put up with reconstruction every EPOCH_LOG
+                                                    if (locs.size() == 0 || epochcnt == maxepoch) { // put up with reconstruction every EPOCH_LOG: || epochcnt % EPOCH_LOG == 0
                                                         String outdir = delindir + IJ.d2s(epochcnt, 0);
                                                         Tools.createDir(outdir); // create if nonexistent
-                                                        export_reconstruction(mtt.Y, outdir+File.separator+imnameshort);
+
+                                                        String SwcHeader = generateSwcHeader( // concatenate the params used into swc header format
+                                                                imnameshort,
+                                                                sigmas,
+                                                                no[i01],
+                                                                ro[i02],
+                                                                krad[i04],
+                                                                step[i05],
+                                                                kappa[i06],
+                                                                pS[i07],
+                                                                pD[i08],
+                                                                th[i09],
+                                                                kc[i10],
+                                                                maxiter,
+                                                                maxepoch,
+                                                                savemidres
+                                                        );
+
+                                                        export_reconstruction(mtt.Y, outdir+File.separator+imnameshort, SwcHeader);
                                                     }
 
                                                 } // while there are locations and epochs have not reached the limit
@@ -740,13 +791,15 @@ public class MTracker implements PlugIn {
 
     private void export_reconstruction(
             ArrayList<Node> n0,
-            String path_prefix)
+            String path_prefix,
+            String SwcHeader
+    )
     {
 
         float rad2kernel = 2f;
-        int refine_iter = 4;
+        int refine_iter = 3;
         double epsilon2 = 1e-8;
-        float group_radius = 1f;
+        float group_radius = 1.5f;
 
 //        save_nodelist(n0, prefix+"_Phd0.swc", Node.RED);
 
@@ -771,17 +824,19 @@ public class MTracker implements PlugIn {
         ArrayList<Node> n3tree = bfs2(n3, true);
         n3.clear();
 
-        save_nodelist(n3tree, path_prefix+".swc", Node.GREEN_LIGHT);
+        save_nodelist(n3tree, path_prefix+".swc", Node.GREEN_LIGHT, SwcHeader);
 
     }
 
-    private void save_nodelist(ArrayList<Node> nX, String swcname, int type) {
+    private void save_nodelist(ArrayList<Node> nX, String SwcName, int type, String SwcHeader) {
 
-        Tools.cleanfile(swcname);
+        Tools.cleanfile(SwcName);
 
         try {
 
-            PrintWriter logWriter = new PrintWriter(new BufferedWriter(new FileWriter(swcname, true)));
+            PrintWriter logWriter = new PrintWriter(new BufferedWriter(new FileWriter(SwcName, true)));
+
+            logWriter.println(SwcHeader); // add swc header
 
             for (int i = 1; i < nX.size(); i++) { // nX[0] = null
                 Node nn = nX.get(i);
@@ -958,6 +1013,8 @@ public class MTracker implements PlugIn {
         double x2, y2, z2, d2, r2;
         int iter, cnt;
 
+        IJ.log("tree formation (experimental)...");
+
         for (int i = 1; i < nY.size(); i++) { // nY[0] is null
 
             if (i%checkpoint==0) IJ.log("" + ((i/checkpoint)*10) + "% " );
@@ -1024,6 +1081,7 @@ public class MTracker implements PlugIn {
 
         } // go through nY[i], initiate with nX[i] values and refine by mean-shift averaging
 
+        IJ.log("done.");
 
     }
 
@@ -1485,6 +1543,44 @@ public class MTracker implements PlugIn {
 
     }
 
+    private String generateSwcHeader(
+            String CurrentImname,
+            String CurrentSigmas,
+            int CurrentNo,
+            int CurrentRo,
+            int CurrentKrad,
+            int CurrentStep,
+            float CurrentKappa,
+            float CurrentPs,
+            float CurrentPd,
+            float CurrentTh,
+            float CurrentKc,
+            int   CurrentMaxiter,
+            int   CurrentMaxepoch,
+            boolean CurrentSavemidres
+    ){
+
+        String outHeader = "#https://bitbucket.org/miroslavradojevic/phd/src\n";
+
+        outHeader += "#imname = " + CurrentImname + "\n";
+        outHeader += "#sigmas = " + CurrentSigmas + "\n";
+        outHeader += "#no = "     + CurrentNo + "\n";
+        outHeader += "#ro = "     + CurrentRo + "\n";
+        outHeader += "#krad = "   + CurrentKrad + "\n";
+        outHeader += "#step = "   + CurrentStep + "\n";
+        outHeader += "#kappa = "  + CurrentKappa + "\n";
+        outHeader += "#pS = "     + CurrentPs + "\n";
+        outHeader += "#pD = "     + CurrentPd + "\n";
+        outHeader += "#th = "     + CurrentTh + "\n";
+        outHeader += "#Kc = "     + CurrentKc + "\n";
+        outHeader += "#maxiter = " + CurrentMaxiter + "\n";
+        outHeader += "#maxepoch = " + CurrentMaxepoch + "\n";
+        outHeader += "#savemidres = " + CurrentSavemidres;
+
+        return  outHeader;
+
+    }
+
     private ArrayList<Integer> importsamp(ArrayList<Double> lcws, int n) {
         // systematic resampling, Beyond Kalman Filtering, Ristic et al.
         double totalmass = lcws.get(lcws.size() - 1);
@@ -1540,6 +1636,8 @@ public class MTracker implements PlugIn {
     }
 
     private ArrayList<Node> bfs2(ArrayList<Node> nlist, boolean remove_isolated_node) {
+
+        IJ.log("bfs...");
 
         /*
         https://en.wikipedia.org/wiki/Breadth-first_search
