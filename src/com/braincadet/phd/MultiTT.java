@@ -2132,7 +2132,7 @@ public class MultiTT {
          3      Q.enqueue(v)
          4      label v as discovered
          5      while Q is not empty
-         6         v ← Q.dequeue()
+         6         v <- Q.dequeue()
          7         for all edges from v to w in G.adjacentEdges(v) do
          8             if w is not labeled as discovered
          9                 Q.enqueue(w)

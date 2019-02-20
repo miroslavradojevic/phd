@@ -9,6 +9,7 @@ MANIFEST.MF
 rubbish
 
 # switch to regexp syntax.
+sources.txt
 syntax: regexp
 ^\.idea/
 ^idea$
