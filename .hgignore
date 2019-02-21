@@ -2,7 +2,6 @@
 syntax: glob
 
 *.class
-*.iml
 *.DS_Store
 MANIFEST.MF
 *~
