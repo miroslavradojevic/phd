@@ -55,7 +55,7 @@ public class MTracker implements PlugIn {
 
     // save results
     int maxiter = 200;                  // iteration limit (hundreds are fine)
-    boolean savemidres = true;          // save partial results
+    boolean savemidres = false;         // save partial results
     float[] tness;                      // tubeness min-max normalized
 
     int[] suppmap;                      // supression map: disable sampling (image stack size)
