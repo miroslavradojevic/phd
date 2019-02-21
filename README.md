@@ -1,17 +1,16 @@
 # Neuron tracing using probability hypothesis filtering #
-
 ImageJ plugin, [doi.org/10.1093/bioinformatics/btw751](https://doi.org/10.1093/bioinformatics/btw751)
 
 ### Usage ###
-
-* copy [phd_.jar](https://bitbucket.org/miroslavradojevic/phd/src) to ImageJ plugins directory
-* copy [vess_.jar](https://bitbucket.org/miroslavradojevic/vess/src) to ImageJ plugins directory
-* Open ImageJ > BrainCadet > PHD
+* copy [phd_.jar](https://bitbucket.org/miroslavradojevic/phd/downloads/phd_1.0.0.jar) and [vess_.jar](https://bitbucket.org/miroslavradojevic/vess/downloads/vess_1.0.0.jar) to ImageJ's plugins directory
+* Open ImageJ > Plugins > BrainCadet > PHD
 * select file (works with 8bit images and image stacks, dark background)
-* choose values in the parameter menu
+* enter values in the parameter menu
+
+### Release ###
+[phd_1.0.0.jar](https://bitbucket.org/miroslavradojevic/phd/downloads/phd_1.0.0.jar)
 
 ### ImageJ macro for batch processing ###
-
 * parameter grid 
 * possibility to use the parameter grid to process all existing *.tif 8bit images in given directory 
 * ij macro: ij-macro/run_phd.ijm
