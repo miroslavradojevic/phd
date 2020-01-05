@@ -2,7 +2,7 @@
 ImageJ plugin, [doi.org/10.1093/bioinformatics/btw751](https://doi.org/10.1093/bioinformatics/btw751)
 
 ### Usage ###
-* copy [phd_.jar](https://bitbucket.org/miroslavradojevic/phd/downloads/phd_1.0.0.jar) and [vess_.jar](https://bitbucket.org/miroslavradojevic/vess/downloads/vess_1.0.0.jar) to ImageJ's plugins directory
+* copy [phd_.jar](https://github.com/miroslavradojevic/phd/releases/download/1.0.0/phd_1.0.0.jar) and [vess_.jar](https://bitbucket.org/miroslavradojevic/vess/downloads/vess_1.0.0.jar) to ImageJ's plugins directory
 * Open ImageJ > Plugins > BrainCadet > PHD
 * select file (works with 8bit images and image stacks, dark background)
 * enter values in the parameter menu
