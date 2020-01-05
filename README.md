@@ -7,9 +7,6 @@ ImageJ plugin, [doi.org/10.1093/bioinformatics/btw751](https://doi.org/10.1093/b
 * select file (works with 8bit images and image stacks, dark background)
 * enter values in the parameter menu
 
-### Release ###
-[phd_1.0.0.jar](https://bitbucket.org/miroslavradojevic/phd/downloads/phd_1.0.0.jar)
-
 ### ImageJ macro for batch processing ###
 * parameter grid 
 * possibility to use the parameter grid to process all existing *.tif 8bit images in given directory 
