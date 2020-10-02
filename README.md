@@ -1,4 +1,4 @@
-# Neuron tracing using probability hypothesis filtering #
+# Automated neuron tracing using probability hypothesis density filtering #
 ImageJ plugin, [doi.org/10.1093/bioinformatics/btw751](https://doi.org/10.1093/bioinformatics/btw751)
 
 ### Usage ###
