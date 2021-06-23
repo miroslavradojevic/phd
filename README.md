@@ -1,5 +1,5 @@
 # Automated neuron tracing using probability hypothesis density filtering #
-####ImageJ plugin
+#### ImageJ plugin ####
 
 Radojević, M., & Meijering, E. (2017). Automated neuron tracing using probability hypothesis density filtering. Bioinformatics, 33(7), 1073-1080.
 
