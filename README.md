@@ -1,5 +1,9 @@
 # Automated neuron tracing using probability hypothesis density filtering #
-ImageJ plugin, [doi.org/10.1093/bioinformatics/btw751](https://doi.org/10.1093/bioinformatics/btw751)
+####ImageJ plugin
+
+Radojević, M., & Meijering, E. (2017). Automated neuron tracing using probability hypothesis density filtering. Bioinformatics, 33(7), 1073-1080.
+
+[doi.org/10.1093/bioinformatics/btw751](https://doi.org/10.1093/bioinformatics/btw751)
 
 ### Usage ###
 * copy [phd_.jar](https://github.com/miroslavradojevic/phd/releases/download/1.0.0/phd_1.0.0.jar) and [vess_.jar](https://github.com/miroslavradojevic/vess/releases/download/1.0.0/vess_1.0.0.jar) to ImageJ's plugins directory
